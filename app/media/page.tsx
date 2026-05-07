@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
 import { MediaCard } from "@/components/media/media-card";
-import { getMediaAssets } from "@/lib/services/media-storage";
+import { getMediaAssets, getUserMediaAssets } from "@/lib/services/media-storage";
+import { getCurrentProfile } from "@/lib/services/profiles";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
 import type { MediaAsset } from "@/lib/types/media";
 
 type MediaFilter = "all" | "images" | "videos" | "ready" | "processing";
@@ -48,15 +50,45 @@ function filterAssets(assets: MediaAsset[], filter: MediaFilter) {
 export default async function MediaPage({ searchParams }: MediaPageProps) {
   const params = await searchParams;
   const activeFilter = resolveFilter(params.filter);
-  const assets = getMediaAssets();
+
+  const profile = await getCurrentProfile();
+  const supabaseReady = isSupabaseConfigured();
+  const isAuthenticated = profile.mode === "supabase" && Boolean(profile.user);
+
+  let assets: MediaAsset[];
+  let isPersisted: boolean;
+
+  if (supabaseReady && isAuthenticated && profile.user) {
+    const persisted = await getUserMediaAssets(profile.user.id);
+    if (persisted.length > 0) {
+      assets = persisted;
+      isPersisted = true;
+    } else {
+      assets = getMediaAssets();
+      isPersisted = false;
+    }
+  } else {
+    assets = getMediaAssets();
+    isPersisted = false;
+  }
+
   const filteredAssets = filterAssets(assets, activeFilter);
+  const sourceLabel = isPersisted ? "persisted" : "mock";
+  const badgeClass = isPersisted
+    ? "status-pill border-emerald-400/20 bg-emerald-400/10 text-emerald-200"
+    : "status-pill border-electric/20 bg-electric/10 text-electric";
 
   return (
     <AppShell
       eyebrow="Media Library"
       title="Track generated media records and prepare download-ready asset flows."
       description="The Media Library now uses typed mock records and storage-ready contracts so the dashboard can preview assets, filter them by lane, and prepare direct downloads without live Supabase Storage yet."
-      action={<div className="status-pill border-electric/20 bg-electric/10 text-electric">{assets.length} mock assets</div>}
+      action={
+        <div className="flex flex-wrap items-center gap-2">
+          <div className={badgeClass}>{sourceLabel}</div>
+          <div className="status-pill border-electric/20 bg-electric/10 text-electric">{assets.length} assets</div>
+        </div>
+      }
     >
       <section className="panel-strong p-5 sm:p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">

@@ -72,6 +72,7 @@ create table if not exists public.generation_jobs (
   input_payload jsonb not null default '{}'::jsonb,
   output_payload jsonb not null default '{}'::jsonb,
   external_job_id text,
+  external_id text,
   error_message text,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
@@ -81,14 +82,20 @@ create table if not exists public.media_assets (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   generation_job_id uuid references public.generation_jobs(id) on delete set null,
+  external_id text,
   title text not null,
   prompt text not null default '',
   media_type text not null,
   status text not null default 'generated',
   storage_bucket text,
   storage_path text,
+  thumbnail_bucket text,
+  thumbnail_path text,
   thumbnail_url text,
   media_url text,
+  content_type text,
+  file_name text,
+  assigned_agent_id text,
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
@@ -97,6 +104,7 @@ create table if not exists public.media_assets (
 create table if not exists public.campaigns (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
+  external_id text,
   name text not null,
   objective text not null,
   status text not null default 'draft',
@@ -128,6 +136,7 @@ create table if not exists public.promotion_packages (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   campaign_id uuid not null references public.campaigns(id) on delete cascade,
+  external_id text,
   assigned_agent_key text references public.agents(agent_key) on delete set null,
   media_asset_ids jsonb not null default '[]'::jsonb,
   channels jsonb not null default '[]'::jsonb,
@@ -199,9 +208,23 @@ create index if not exists generation_jobs_user_id_idx on public.generation_jobs
 create index if not exists generation_jobs_status_idx on public.generation_jobs (status);
 create index if not exists generation_jobs_created_at_idx on public.generation_jobs (created_at desc);
 
+alter table public.media_assets add column if not exists external_id text;
+alter table public.media_assets add column if not exists thumbnail_bucket text;
+alter table public.media_assets add column if not exists thumbnail_path text;
+alter table public.media_assets add column if not exists content_type text;
+alter table public.media_assets add column if not exists file_name text;
+alter table public.media_assets add column if not exists assigned_agent_id text;
+alter table public.generation_jobs add column if not exists external_id text;
+alter table public.campaigns add column if not exists external_id text;
+alter table public.promotion_packages add column if not exists external_id text;
+
 create index if not exists media_assets_user_id_idx on public.media_assets (user_id);
 create index if not exists media_assets_status_idx on public.media_assets (status);
 create index if not exists media_assets_created_at_idx on public.media_assets (created_at desc);
+create unique index if not exists media_assets_external_id_uidx on public.media_assets (external_id) where external_id is not null;
+create unique index if not exists generation_jobs_external_id_uidx on public.generation_jobs (external_id) where external_id is not null;
+create unique index if not exists campaigns_external_id_uidx on public.campaigns (external_id) where external_id is not null;
+create unique index if not exists promotion_packages_external_id_uidx on public.promotion_packages (external_id) where external_id is not null;
 
 create index if not exists campaigns_user_id_idx on public.campaigns (user_id);
 create index if not exists campaigns_status_idx on public.campaigns (status);
