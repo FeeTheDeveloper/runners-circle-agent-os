@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentProfile } from "@/lib/services/profiles";
-import { createSignedUploadUrl, deleteStoredMediaAsset, registerStoredMediaAsset } from "@/lib/services/media-storage";
+import {
+  createSignedUploadUrl,
+  deleteStoredMediaAsset,
+  generateMediaAssetUuid,
+  registerStoredMediaAsset,
+} from "@/lib/services/media-storage";
 import { mediaTypes, type MediaDownloadError, type MediaUploadUrlSuccess } from "@/lib/types/media";
 
 export const runtime = "nodejs";
@@ -13,6 +18,7 @@ const requestSchema = z.object({
   assignedAgentId: z.string().min(1),
   generationJobId: z.string().min(1).optional().nullable(),
   campaignId: z.string().min(1).optional().nullable(),
+  externalId: z.string().min(1).optional().nullable(),
 });
 
 export async function POST(request: Request) {
@@ -36,8 +42,12 @@ export async function POST(request: Request) {
 
     const currentProfile = await getCurrentProfile();
     const userId = currentProfile.user?.id ?? currentProfile.profile?.user_id ?? "mock-user";
+    const newAssetId = generateMediaAssetUuid();
+
     const asset = registerStoredMediaAsset({
       userId,
+      assetId: newAssetId,
+      externalId: parsed.data.externalId ?? null,
       type: parsed.data.type,
       title: parsed.data.title,
       prompt: parsed.data.prompt,

@@ -69,6 +69,7 @@ export interface GenerationJobRow {
   input_payload: Json;
   output_payload: Json;
   external_job_id: string | null;
+  external_id: string | null;
   error_message: string | null;
   created_at: string;
   updated_at: string;
@@ -78,14 +79,20 @@ export interface MediaAssetRow {
   id: string;
   user_id: string;
   generation_job_id: string | null;
+  external_id: string | null;
   title: string;
   prompt: string;
   media_type: MediaType;
   status: MediaStatus;
   storage_bucket: string | null;
   storage_path: string | null;
+  thumbnail_bucket: string | null;
+  thumbnail_path: string | null;
   thumbnail_url: string | null;
   media_url: string | null;
+  content_type: string | null;
+  file_name: string | null;
+  assigned_agent_id: string | null;
   metadata: Json;
   created_at: string;
   updated_at: string;
@@ -94,6 +101,7 @@ export interface MediaAssetRow {
 export interface CampaignRow {
   id: string;
   user_id: string;
+  external_id: string | null;
   name: string;
   objective: CampaignObjective;
   status: CampaignStatus;
@@ -125,6 +133,7 @@ export interface PromotionPackageRow {
   id: string;
   user_id: string;
   campaign_id: string;
+  external_id: string | null;
   assigned_agent_key: string | null;
   media_asset_ids: string[];
   channels: PromotionChannel[];

@@ -85,6 +85,10 @@ export function createVideoGeneration(input: VideoGenerationInput): GenerationRe
     mediaUrl: `mock://studio/video-jobs/${id}`,
     createdAt,
     assignedAgentId: input.agentId,
+    pendingUpload: true,
+    storageBucket: null,
+    storagePath: null,
+    finalizeRequired: true,
   };
 
   // TODO: Replace the mock queued result with a real OpenAI or render-provider submission flow.

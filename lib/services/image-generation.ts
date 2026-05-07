@@ -78,6 +78,10 @@ export function createImageGeneration(input: ImageGenerationInput): GenerationRe
     mediaUrl: `mock://studio/images/${id}.png`,
     createdAt,
     assignedAgentId: input.agentId,
+    pendingUpload: true,
+    storageBucket: null,
+    storagePath: null,
+    finalizeRequired: true,
   };
 
   // TODO: Replace the mock result with real OpenAI image generation once the provider layer is wired.

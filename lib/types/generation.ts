@@ -40,6 +40,10 @@ export interface GenerationResult {
   mediaUrl: string;
   createdAt: string;
   assignedAgentId: string;
+  pendingUpload: boolean;
+  storageBucket: string | null;
+  storagePath: string | null;
+  finalizeRequired: boolean;
 }
 
 export type GenerationErrorCode = "VALIDATION_ERROR" | "INVALID_AGENT_TASK" | "INTERNAL_ERROR";
