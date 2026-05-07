@@ -5,7 +5,21 @@ import Link from "next/link";
 import { ArrowUpRight, Sparkles } from "lucide-react";
 import { agentRegistry } from "@/lib/agents/registry";
 import { GenerationResult } from "@/components/studio/generation-result";
-import { aspectRatios, videoDurations, videoFormats, type GenerationResponse, type GenerationResult as GenerationResultData, type GenerationType, type ImageGenerationInput, type VideoGenerationInput } from "@/lib/types/generation";
+import { VideoJobCard } from "@/components/studio/video-job-card";
+import {
+  aspectRatios,
+  videoDurations,
+  videoFormats,
+  type GenerationError,
+  type GenerationResponse,
+  type GenerationResult as GenerationResultData,
+  type GenerationType,
+  type ImageGenerationInput,
+  type VideoGenerationInput,
+  type VideoGenerationJob,
+  type VideoGenerationJobAcceptedResponse,
+  type VideoGenerationJobDetailResponse,
+} from "@/lib/types/generation";
 
 interface PromptPanelProps {
   mode: GenerationType;
@@ -281,6 +295,11 @@ function ImagePromptPanel({ title, description, defaultPrompt }: Omit<PromptPane
   );
 }
 
+type VideoQueueResponse =
+  | VideoGenerationJobAcceptedResponse
+  | VideoGenerationJobDetailResponse
+  | GenerationError;
+
 function VideoPromptPanel({ title, description, defaultPrompt }: Omit<PromptPanelProps, "mode">) {
   const [form, setForm] = useState<VideoGenerationInput>({
     prompt: defaultPrompt,
@@ -290,7 +309,7 @@ function VideoPromptPanel({ title, description, defaultPrompt }: Omit<PromptPane
     brandMode: true,
     agentId: getDefaultAgentId("video", videoAgents.map((agent) => agent.id)),
   });
-  const [result, setResult] = useState<GenerationResultData | null>(null);
+  const [job, setJob] = useState<VideoGenerationJob | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -298,17 +317,40 @@ function VideoPromptPanel({ title, description, defaultPrompt }: Omit<PromptPane
     event.preventDefault();
     setIsSubmitting(true);
     setErrorMessage(null);
-    setResult(null);
+    setJob(null);
 
     try {
-      const response = await requestGeneration("/api/generate/video", form);
+      const response = await fetch("/api/generate/video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
 
-      if (!response.success) {
-        setErrorMessage(response.error.message);
+      const body = (await response.json()) as VideoQueueResponse;
+
+      if (!body.success) {
+        setErrorMessage(body.error.message);
         return;
       }
 
-      setResult(response.data);
+      const data = body.data as
+        | VideoGenerationJobAcceptedResponse["data"]
+        | VideoGenerationJobDetailResponse["data"];
+
+      if ("nextStep" in data) {
+        const detailResponse = await fetch(`/api/generate/video/${data.job.id}`);
+        const detailBody = (await detailResponse.json()) as
+          | VideoGenerationJobDetailResponse
+          | GenerationError;
+
+        if (detailBody.success) {
+          setJob(detailBody.data.job);
+        } else {
+          setErrorMessage(detailBody.error.message);
+        }
+      } else {
+        setJob(data.job);
+      }
     } catch {
       setErrorMessage("Unable to submit the video generation contract right now.");
     } finally {
@@ -317,13 +359,13 @@ function VideoPromptPanel({ title, description, defaultPrompt }: Omit<PromptPane
   }
 
   return (
-    <PromptPanelShell
-      mode="video"
+    <VideoPromptShell
       title={title}
       description={description}
-      result={result}
+      job={job}
       errorMessage={errorMessage}
       isSubmitting={isSubmitting}
+      onJobUpdate={setJob}
     >
       <form className="grid gap-5" onSubmit={handleSubmit}>
         <div className="grid gap-2">
@@ -426,10 +468,88 @@ function VideoPromptPanel({ title, description, defaultPrompt }: Omit<PromptPane
           disabled={isSubmitting}
           className="inline-flex items-center justify-center rounded-full bg-orange px-5 py-3 text-sm font-semibold text-black transition hover:bg-orange-soft disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isSubmitting ? "Queueing mock video job..." : "Generate video"}
+          {isSubmitting ? "Queueing video job..." : "Queue video job"}
         </button>
       </form>
-    </PromptPanelShell>
+    </VideoPromptShell>
+  );
+}
+
+interface VideoPromptShellProps {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+  job: VideoGenerationJob | null;
+  errorMessage: string | null;
+  isSubmitting: boolean;
+  onJobUpdate: (job: VideoGenerationJob) => void;
+}
+
+function VideoPromptShell({
+  title,
+  description,
+  children,
+  job,
+  errorMessage,
+  isSubmitting,
+  onJobUpdate,
+}: VideoPromptShellProps) {
+  return (
+    <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+      <section className="panel-strong p-5 sm:p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="eyebrow">Direct Generation</p>
+            <h2 className="mt-3 text-2xl font-semibold text-foreground">{title}</h2>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">{description}</p>
+          </div>
+          <div className="rounded-2xl border border-orange/20 bg-orange/10 p-3 text-orange-soft">
+            <Sparkles className="size-5" />
+          </div>
+        </div>
+
+        <div className="mt-6">{children}</div>
+
+        <div className="mt-6 flex flex-col gap-3 border-t border-white/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm leading-6 text-muted">
+            Video generation runs as a job. The POST returns 202 with a queued job; the worker advances state and links a media asset on completion.
+          </p>
+          <Link
+            href="/agents"
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-orange px-5 py-3 text-sm font-semibold text-black transition hover:bg-orange-soft"
+          >
+            View agent registry
+            <ArrowUpRight className="size-4" />
+          </Link>
+        </div>
+      </section>
+
+      {job ? (
+        <VideoJobCard job={job} onJobUpdate={onJobUpdate} />
+      ) : (
+        <section className="panel h-full p-5 sm:p-6">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="eyebrow">Render queue</p>
+              <h2 className="mt-3 text-2xl font-semibold text-foreground">No job submitted yet</h2>
+            </div>
+            <div className="status-pill border-white/10 bg-white/[0.04] text-foreground/80">
+              {isSubmitting ? "Submitting" : "Awaiting input"}
+            </div>
+          </div>
+          {errorMessage ? (
+            <div className="mt-5 rounded-2xl border border-warning/30 bg-warning/10 p-4">
+              <p className="field-label text-warning">Request error</p>
+              <p className="mt-3 text-sm leading-6 text-foreground">{errorMessage}</p>
+            </div>
+          ) : (
+            <p className="mt-5 text-sm leading-6 text-muted">
+              Queue a job to see the render lifecycle: queued → processing → rendering → uploading → completed. In mock mode, use the Process Mock Step button to advance one stage at a time.
+            </p>
+          )}
+        </section>
+      )}
+    </div>
   );
 }
 

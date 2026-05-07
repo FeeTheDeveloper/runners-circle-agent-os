@@ -4,6 +4,8 @@ import { getAgentTasks } from "@/lib/services/agent-tasks";
 import { getCampaigns } from "@/lib/services/campaigns";
 import { getMediaAssets } from "@/lib/services/media-storage";
 import { getPromotionPackages } from "@/lib/services/promotions";
+import { getAllVideoGenerationJobs } from "@/lib/services/video-generation";
+import { getRenderQueueDepth, peekVideoQueue } from "@/lib/services/render-queue";
 import { campaignStatuses } from "@/lib/types/campaigns";
 import { promotionStatuses } from "@/lib/types/promotions";
 import type { ActivitySeverity, ActivityType } from "@/lib/types/activity";
@@ -11,6 +13,7 @@ import { agentTaskStatuses } from "@/lib/types/agents";
 import type { AgentTaskRecord, AgentTaskStatus } from "@/lib/types/agents";
 import type { CampaignStatus } from "@/lib/types/campaigns";
 import type { PromotionStatus } from "@/lib/types/promotions";
+import { videoJobStatuses, type VideoGenerationJob, type VideoJobStatus } from "@/lib/types/generation";
 
 export interface OperatorMetrics {
   totalAgentTasks: number;
@@ -35,11 +38,26 @@ export interface QueueSnapshot {
   agentTasks: QueueStatusCount<AgentTaskStatus>[];
   campaigns: QueueStatusCount<CampaignStatus>[];
   promotions: QueueStatusCount<PromotionStatus>[];
+  videoJobs: QueueStatusCount<VideoJobStatus>[];
+}
+
+export interface RenderQueueSnapshot {
+  depth: number;
+  queued: VideoGenerationJob[];
+  active: VideoGenerationJob[];
+  failed: VideoGenerationJob[];
+  completedToday: number;
 }
 
 export interface FailureSnapshotItem {
   id: string;
-  entityType: "agent_task" | "media_asset" | "campaign" | "promotion_package" | "system";
+  entityType:
+    | "agent_task"
+    | "media_asset"
+    | "campaign"
+    | "promotion_package"
+    | "video_job"
+    | "system";
   entityId: string;
   title: string;
   description: string;
@@ -142,11 +160,33 @@ export function getQueueSnapshot(): QueueSnapshot {
   const tasks = getAgentTasks();
   const campaigns = getCampaigns();
   const promotionPackages = getPromotionPackages();
+  const videoJobs = getAllVideoGenerationJobs();
 
   return {
     agentTasks: getStatusCount(agentTaskStatuses, tasks.map((task) => task.status)),
     campaigns: getStatusCount(campaignStatuses, campaigns.map((campaign) => campaign.status)),
     promotions: getStatusCount(promotionStatuses, promotionPackages.map((promotionPackage) => promotionPackage.status)),
+    videoJobs: getStatusCount(videoJobStatuses, videoJobs.map((job) => job.status)),
+  };
+}
+
+export function getRenderQueueSnapshot(): RenderQueueSnapshot {
+  const jobs = getAllVideoGenerationJobs();
+  const queued = jobs.filter((job) => job.status === "queued");
+  const active = jobs.filter(
+    (job) => job.status === "processing" || job.status === "rendering" || job.status === "uploading",
+  );
+  const failed = jobs.filter((job) => job.status === "failed");
+  const completedToday = jobs.filter(
+    (job) => job.status === "completed" && isToday(job.updatedAt),
+  ).length;
+
+  return {
+    depth: Math.max(getRenderQueueDepth(), peekVideoQueue().length),
+    queued,
+    active,
+    failed,
+    completedToday,
   };
 }
 
@@ -209,6 +249,19 @@ export function getFailureSnapshot(): FailureSnapshotItem[] {
         severity: "error" as const,
         owner: promotionPackage.assignedAgentId,
         updatedAt: promotionPackage.updatedAt,
+      })),
+    ...getAllVideoGenerationJobs()
+      .filter((job) => job.status === "failed")
+      .map((job) => ({
+        id: `failure_${job.id}`,
+        entityType: "video_job" as const,
+        entityId: job.id,
+        title: `Video render failed`,
+        description: job.errorMessage ?? "Render failed without a recorded error message.",
+        status: job.status,
+        severity: "error" as const,
+        owner: job.assignedAgentId,
+        updatedAt: job.updatedAt,
       })),
     ...systemErrors.map((event) => ({
       id: `failure_${event.id}`,

@@ -69,11 +69,15 @@ create table if not exists public.generation_jobs (
   agent_task_id uuid references public.agent_tasks(id) on delete set null,
   generation_type text not null,
   status text not null default 'queued',
+  provider text,
+  progress integer not null default 0,
   input_payload jsonb not null default '{}'::jsonb,
   output_payload jsonb not null default '{}'::jsonb,
   external_job_id text,
   external_id text,
   error_message text,
+  media_asset_id uuid,
+  assigned_agent_id text,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
@@ -207,6 +211,18 @@ create index if not exists agent_outputs_created_at_idx on public.agent_outputs 
 create index if not exists generation_jobs_user_id_idx on public.generation_jobs (user_id);
 create index if not exists generation_jobs_status_idx on public.generation_jobs (status);
 create index if not exists generation_jobs_created_at_idx on public.generation_jobs (created_at desc);
+
+alter table public.generation_jobs add column if not exists provider text;
+alter table public.generation_jobs add column if not exists progress integer not null default 0;
+alter table public.generation_jobs add column if not exists media_asset_id uuid;
+alter table public.generation_jobs add column if not exists assigned_agent_id text;
+
+alter table public.generation_jobs drop constraint if exists generation_jobs_media_asset_id_fkey;
+alter table public.generation_jobs add constraint generation_jobs_media_asset_id_fkey
+  foreign key (media_asset_id) references public.media_assets(id) on delete set null;
+
+create index if not exists generation_jobs_type_idx on public.generation_jobs (generation_type);
+create index if not exists generation_jobs_provider_idx on public.generation_jobs (provider);
 
 alter table public.media_assets add column if not exists external_id text;
 alter table public.media_assets add column if not exists thumbnail_bucket text;

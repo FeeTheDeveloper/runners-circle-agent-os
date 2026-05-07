@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createVideoGeneration } from "@/lib/services/video-generation";
-import { videoFormats, type GenerationError, type GenerationResponse, type GenerationResult } from "@/lib/types/generation";
+import { createVideoGenerationJob } from "@/lib/services/video-generation";
+import { enqueueVideoJob } from "@/lib/services/render-queue";
+import { getCurrentProfile } from "@/lib/services/profiles";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
+import {
+  videoFormats,
+  type GenerationError,
+  type VideoGenerationJobAcceptedResponse,
+} from "@/lib/types/generation";
 
 export const runtime = "nodejs";
 
@@ -31,15 +38,40 @@ export async function POST(request: Request) {
       return NextResponse.json(body, { status: 400 });
     }
 
-    const result = createVideoGeneration(parsed.data);
+    if (isSupabaseConfigured()) {
+      const profile = await getCurrentProfile();
+
+      if (!profile.user) {
+        const body: GenerationError = {
+          success: false,
+          error: {
+            message: "Authentication required for video generation.",
+            code: "INVALID_AGENT_TASK",
+          },
+        };
+
+        return NextResponse.json(body, { status: 401 });
+      }
+    }
+
+    const result = await createVideoGenerationJob(parsed.data);
 
     if (!result.success) {
       return NextResponse.json(result, { status: 400 });
     }
 
-    const body: GenerationResponse<GenerationResult> = {
+    enqueueVideoJob(result.data.id);
+
+    const body: VideoGenerationJobAcceptedResponse = {
       success: true,
-      data: result.data,
+      data: {
+        job: {
+          id: result.data.id,
+          status: result.data.status,
+          progress: result.data.progress,
+        },
+        nextStep: "Video job queued. Poll the job endpoint for updates.",
+      },
     };
 
     return NextResponse.json(body, { status: 202 });
@@ -47,7 +79,7 @@ export async function POST(request: Request) {
     const body: GenerationError = {
       success: false,
       error: {
-        message: "Unexpected error while generating video contract.",
+        message: "Unexpected error while queueing video generation.",
         code: "INTERNAL_ERROR",
       },
     };

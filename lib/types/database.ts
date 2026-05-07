@@ -1,7 +1,7 @@
 import type { ActivityEntityType, ActivitySeverity, ActivityType } from "@/lib/types/activity";
 import type { AgentStatus, AgentTaskPriority, AgentTaskStatus, AgentTaskType } from "@/lib/types/agents";
 import type { CampaignAssetStatus, CampaignChannel, CampaignObjective, CampaignStatus } from "@/lib/types/campaigns";
-import type { GenerationStatus, GenerationType } from "@/lib/types/generation";
+import type { GenerationStatus, GenerationType, VideoJobStatus } from "@/lib/types/generation";
 import type { MediaStatus, MediaType } from "@/lib/types/media";
 import type { PromotionChannel, PromotionStatus } from "@/lib/types/promotions";
 
@@ -65,12 +65,16 @@ export interface GenerationJobRow {
   user_id: string;
   agent_task_id: string | null;
   generation_type: GenerationType;
-  status: GenerationStatus;
+  status: GenerationStatus | VideoJobStatus;
+  provider: string | null;
+  progress: number;
   input_payload: Json;
   output_payload: Json;
   external_job_id: string | null;
   external_id: string | null;
   error_message: string | null;
+  media_asset_id: string | null;
+  assigned_agent_id: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -44,7 +44,7 @@ export function QueuePanel({ snapshot }: QueuePanelProps) {
         <div className="status-pill">Command flow</div>
       </div>
 
-      <div className="mt-6 grid gap-4 xl:grid-cols-3">
+      <div className="mt-6 grid gap-4 xl:grid-cols-2 2xl:grid-cols-4">
         <QueueColumn
           heading="Agent tasks"
           description="Work units moving through the direct ChatGPT Agent contract layer."
@@ -59,6 +59,11 @@ export function QueuePanel({ snapshot }: QueuePanelProps) {
           heading="Promotions"
           description="Channel-ready outbound packages progressing toward review and launch."
           items={snapshot.promotions}
+        />
+        <QueueColumn
+          heading="Video jobs"
+          description="Video render jobs currently moving through the render pipeline."
+          items={snapshot.videoJobs}
         />
       </div>
     </section>

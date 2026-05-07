@@ -3,6 +3,7 @@ import { FailurePanel } from "@/components/operator/failure-panel";
 import { NextActionsPanel } from "@/components/operator/next-actions-panel";
 import { OperatorMetricCard } from "@/components/operator/operator-metric-card";
 import { QueuePanel } from "@/components/operator/queue-panel";
+import { RenderQueuePanel } from "@/components/operator/render-queue-panel";
 import { ReviewPanel } from "@/components/operator/review-panel";
 import { AppShell } from "@/components/layout/app-shell";
 import { getRecentActivity } from "@/lib/services/activity";
@@ -11,6 +12,7 @@ import {
   getNextRecommendedActions,
   getOperatorMetrics,
   getQueueSnapshot,
+  getRenderQueueSnapshot,
   getReviewQueue,
   getSystemAvailabilitySummary,
 } from "@/lib/services/operator";
@@ -20,6 +22,7 @@ export const dynamic = "force-dynamic";
 export default function OperatorPage() {
   const metrics = getOperatorMetrics();
   const queues = getQueueSnapshot();
+  const renderQueue = getRenderQueueSnapshot();
   const failures = getFailureSnapshot();
   const reviewQueue = getReviewQueue();
   const nextActions = getNextRecommendedActions();
@@ -139,6 +142,10 @@ export default function OperatorPage() {
 
       <section className="mt-5">
         <QueuePanel snapshot={queues} />
+      </section>
+
+      <section className="mt-5">
+        <RenderQueuePanel snapshot={renderQueue} />
       </section>
 
       <section className="mt-5 grid gap-5 xl:grid-cols-[0.96fr_1.04fr]">

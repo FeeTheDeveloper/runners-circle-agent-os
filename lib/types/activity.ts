@@ -9,6 +9,10 @@ export const activityTypes = [
   "campaign_updated",
   "promotion_prepared",
   "promotion_ready_for_review",
+  "video_job_queued",
+  "video_render_started",
+  "video_render_completed",
+  "video_render_failed",
   "system_warning",
   "system_error",
 ] as const;
