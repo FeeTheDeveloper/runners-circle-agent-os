@@ -141,6 +141,7 @@ export interface FinalizeUploadedMediaAssetInput {
   externalId?: string | null;
   status?: MediaStatus;
   campaignId?: string | null;
+  metadata?: MediaAssetMetadata;
 }
 
 export interface CreateMediaAssetRecordInput {

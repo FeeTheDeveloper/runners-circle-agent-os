@@ -138,7 +138,19 @@ export function MediaCard({ asset }: MediaCardProps) {
           <p className="eyebrow">{asset.type}</p>
           <h2 className="mt-3 text-xl font-semibold text-foreground">{asset.title}</h2>
         </div>
-        <div className={getStatusClassName(asset.status)}>{asset.status}</div>
+        <div className="flex flex-col items-end gap-2">
+          <div className={getStatusClassName(asset.status)}>{asset.status}</div>
+          {asset.source === "supabase" ? (
+            <div className="status-pill border-emerald-400/20 bg-emerald-400/10 text-emerald-200">persisted</div>
+          ) : (
+            <div className="status-pill border-electric/20 bg-electric/10 text-electric">mock</div>
+          )}
+          {typeof asset.metadata.provider === "string" ? (
+            <div className="status-pill border-orange/20 bg-orange/10 text-orange-soft">
+              {asset.metadata.provider}
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <p className="mt-4 text-sm leading-6 text-muted">{getPromptPreview(asset.prompt)}</p>

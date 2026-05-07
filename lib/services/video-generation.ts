@@ -89,6 +89,11 @@ export function createVideoGeneration(input: VideoGenerationInput): GenerationRe
     storageBucket: null,
     storagePath: null,
     finalizeRequired: true,
+    provider: "mock",
+    storageReady: false,
+    persisted: false,
+    assetId: null,
+    revisedPrompt: null,
   };
 
   // TODO: Replace the mock queued result with a real OpenAI or render-provider submission flow.

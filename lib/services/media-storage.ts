@@ -381,6 +381,35 @@ export async function createSignedUploadUrl(input: SignedUploadUrlInput): Promis
   };
 }
 
+export interface UploadMediaBytesInput {
+  bucket: string;
+  path: string;
+  bytes: Uint8Array | Buffer | ArrayBuffer;
+  contentType: string;
+  upsert?: boolean;
+}
+
+export async function uploadMediaBytes(input: UploadMediaBytesInput): Promise<{ bucket: string; path: string }> {
+  if (!isSupabaseStorageReady()) {
+    throw new Error("Supabase storage is not configured for server-side uploads.");
+  }
+
+  const supabase = createSupabaseServiceRoleClient();
+  const body =
+    input.bytes instanceof ArrayBuffer ? new Uint8Array(input.bytes) : input.bytes;
+
+  const { error } = await supabase.storage.from(input.bucket).upload(input.path, body, {
+    contentType: input.contentType,
+    upsert: input.upsert ?? false,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return { bucket: input.bucket, path: input.path };
+}
+
 export async function createSignedDownloadUrl(input: SignedDownloadUrlInput): Promise<DownloadUrlResult> {
   const fileName = input.fileName ?? getFileNameFromPath(input.path);
   const expiresInSeconds = input.expiresInSeconds ?? DEFAULT_DOWNLOAD_TTL_SECONDS;
@@ -831,6 +860,7 @@ export async function finalizeUploadedMediaAsset(
     generationJobId: input.generationJobId ?? null,
     campaignId: input.campaignId ?? null,
     status,
+    metadata: input.metadata,
   });
 }
 

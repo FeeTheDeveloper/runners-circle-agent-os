@@ -61,7 +61,9 @@ async function requestGeneration(
     body: JSON.stringify(payload),
   });
 
-  const body = (await response.json()) as GenerationResponse<GenerationResultData>;
+  const body = (await response.json()) as GenerationResponse<
+    GenerationResultData | { generationResult: GenerationResultData }
+  >;
 
   if (!response.ok && body.success) {
     return {
@@ -71,6 +73,14 @@ async function requestGeneration(
         code: "INTERNAL_ERROR",
       },
     };
+  }
+
+  if (body.success) {
+    const data = body.data as GenerationResultData | { generationResult: GenerationResultData };
+    const generationResult =
+      "generationResult" in data ? data.generationResult : data;
+
+    return { success: true, data: generationResult };
   }
 
   return body;

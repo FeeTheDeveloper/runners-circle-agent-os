@@ -7,6 +7,9 @@ export type GenerationStatus = (typeof generationStatuses)[number];
 export const aspectRatios = ["1:1", "4:5", "9:16", "16:9"] as const;
 export type AspectRatio = (typeof aspectRatios)[number];
 
+export const imageGenerationProviders = ["mock", "openai"] as const;
+export type ImageGenerationProvider = (typeof imageGenerationProviders)[number];
+
 export const videoDurations = [5, 10, 15, 30] as const;
 export type VideoDuration = (typeof videoDurations)[number];
 
@@ -44,6 +47,11 @@ export interface GenerationResult {
   storageBucket: string | null;
   storagePath: string | null;
   finalizeRequired: boolean;
+  provider: ImageGenerationProvider;
+  storageReady: boolean;
+  persisted: boolean;
+  assetId?: string | null;
+  revisedPrompt?: string | null;
 }
 
 export type GenerationErrorCode = "VALIDATION_ERROR" | "INVALID_AGENT_TASK" | "INTERNAL_ERROR";

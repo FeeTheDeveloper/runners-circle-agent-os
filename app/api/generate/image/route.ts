@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createImageGeneration } from "@/lib/services/image-generation";
-import { aspectRatios, type GenerationError, type GenerationResponse, type GenerationResult } from "@/lib/types/generation";
+import { getCurrentProfile } from "@/lib/services/profiles";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
+import {
+  aspectRatios,
+  type GenerationError,
+  type GenerationResponse,
+  type GenerationResult,
+} from "@/lib/types/generation";
 
 export const runtime = "nodejs";
 
@@ -30,15 +37,32 @@ export async function POST(request: Request) {
       return NextResponse.json(body, { status: 400 });
     }
 
-    const result = createImageGeneration(parsed.data);
+    if (isSupabaseConfigured()) {
+      const profile = await getCurrentProfile();
 
-    if (!result.success) {
-      return NextResponse.json(result, { status: 400 });
+      if (!profile.user) {
+        const body: GenerationError = {
+          success: false,
+          error: {
+            message: "Authentication required for image generation.",
+            code: "INVALID_AGENT_TASK",
+          },
+        };
+
+        return NextResponse.json(body, { status: 401 });
+      }
     }
 
-    const body: GenerationResponse<GenerationResult> = {
+    const result = await createImageGeneration(parsed.data);
+
+    if (!result.success) {
+      const status = result.error.code === "VALIDATION_ERROR" ? 400 : 500;
+      return NextResponse.json(result, { status });
+    }
+
+    const body: GenerationResponse<{ generationResult: GenerationResult }> = {
       success: true,
-      data: result.data,
+      data: { generationResult: result.data },
     };
 
     return NextResponse.json(body, { status: 201 });
