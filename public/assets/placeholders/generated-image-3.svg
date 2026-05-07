@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900" fill="none">
+  <rect width="1200" height="900" rx="52" fill="#121315"/>
+  <rect x="40" y="40" width="1120" height="820" rx="36" fill="url(#bg3)" stroke="#2C2F35"/>
+  <circle cx="886" cy="246" r="190" fill="#F97316" fill-opacity=".12"/>
+  <circle cx="312" cy="688" r="204" fill="#00D4FF" fill-opacity=".1"/>
+  <path d="M628 218L858 448L628 678L398 448L628 218Z" fill="#F5F5F4" fill-opacity=".06"/>
+  <path d="M628 298L778 448L628 598L478 448L628 298Z" stroke="#00D4FF" stroke-opacity=".32" stroke-width="4"/>
+  <text x="96" y="154" fill="#F97316" font-family="Arial, sans-serif" font-size="30" letter-spacing="8">RUNNERS CIRCLE OS</text>
+  <text x="96" y="246" fill="#F5F5F4" font-family="Arial, sans-serif" font-size="78" font-weight="700">IMAGE ASSET</text>
+  <text x="96" y="322" fill="#D6D3D1" font-family="Arial, sans-serif" font-size="30">Midnight Tempo Poster</text>
+  <rect x="96" y="386" width="222" height="48" rx="24" fill="#FFFFFF" fill-opacity=".06" stroke="#FFFFFF" stroke-opacity=".14"/>
+  <text x="136" y="418" fill="#E7E5E4" font-family="Arial, sans-serif" font-size="22">ARCHIVED</text>
+  <text x="96" y="760" fill="#E7E5E4" font-family="Arial, sans-serif" font-size="26">Archive-state placeholder with premium poster composition cues</text>
+  <text x="96" y="804" fill="#A8A29E" font-family="Arial, sans-serif" font-size="20">Designed for campaign memory, retrospectives, and reuse planning</text>
+  <defs>
+    <linearGradient id="bg3" x1="100" y1="72" x2="1102" y2="836" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#171A1F"/>
+      <stop offset="1" stop-color="#23272F"/>
+    </linearGradient>
+  </defs>
+</svg>

@@ -1,0 +1,110 @@
+@import "tailwindcss";
+
+:root {
+  --background: #090a0d;
+  --foreground: #f6efe6;
+  --panel: rgba(18, 19, 23, 0.82);
+  --panel-strong: rgba(27, 29, 35, 0.94);
+  --line: rgba(255, 255, 255, 0.09);
+  --line-strong: rgba(255, 255, 255, 0.16);
+  --muted: #b0a89c;
+  --orange: #ff7026;
+  --orange-soft: #ffae72;
+  --electric: #1fdbff;
+  --success: #6bf3aa;
+  --warning: #ffd15c;
+  --danger: #ff7e74;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-panel: var(--panel);
+  --color-panel-strong: var(--panel-strong);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-muted: var(--muted);
+  --color-orange: var(--orange);
+  --color-orange-soft: var(--orange-soft);
+  --color-electric: var(--electric);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(255, 112, 38, 0.16), transparent 28%),
+    radial-gradient(circle at top right, rgba(31, 219, 255, 0.12), transparent 22%),
+    linear-gradient(180deg, #111318 0%, #090a0d 42%, #050608 100%);
+  color: var(--foreground);
+}
+
+::selection {
+  background: rgba(255, 112, 38, 0.28);
+  color: var(--foreground);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+@layer components {
+  .shell-grid {
+    @apply min-h-screen bg-[radial-gradient(circle_at_20%_10%,rgba(255,112,38,0.12),transparent_18%),radial-gradient(circle_at_80%_0%,rgba(31,219,255,0.08),transparent_14%)];
+  }
+
+  .panel {
+    @apply rounded-[28px] border border-white/10 bg-white/[0.04] shadow-[0_20px_80px_rgba(0,0,0,0.38)] backdrop-blur-xl;
+  }
+
+  .panel-strong {
+    @apply rounded-[32px] border border-white/12 bg-white/[0.06] shadow-[0_30px_120px_rgba(0,0,0,0.45)] backdrop-blur-xl;
+  }
+
+  .eyebrow {
+    @apply text-[0.7rem] font-semibold uppercase tracking-[0.32em] text-orange-soft;
+  }
+
+  .status-pill {
+    @apply inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-medium text-muted;
+  }
+
+  .data-chip {
+    @apply inline-flex items-center rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs font-medium text-foreground/85;
+  }
+
+  .section-title {
+    @apply text-xl font-semibold tracking-tight text-foreground md:text-2xl;
+  }
+
+  .metric-value {
+    @apply text-3xl font-semibold tracking-tight text-foreground md:text-4xl;
+  }
+
+  .field-label {
+    @apply text-xs font-semibold uppercase tracking-[0.22em] text-muted;
+  }
+
+  .interactive-border {
+    @apply border border-white/10 transition duration-200 hover:border-orange/50 hover:bg-white/[0.07];
+  }
+}
+
