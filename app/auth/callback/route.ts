@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getPublicSiteUrl, isSupabaseConfigured } from "@/lib/supabase/env";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -18,7 +18,7 @@ export async function GET(request: Request) {
   const nextPath = getSafeNextPath(requestUrl.searchParams.get("next"));
 
   if (!isSupabaseConfigured()) {
-    const redirectUrl = new URL("/sign-in", getPublicSiteUrl());
+    const redirectUrl = new URL("/sign-in", requestUrl.origin);
     redirectUrl.searchParams.set("message", "Supabase auth is not configured yet.");
     redirectUrl.searchParams.set("next", nextPath);
     return NextResponse.redirect(redirectUrl);

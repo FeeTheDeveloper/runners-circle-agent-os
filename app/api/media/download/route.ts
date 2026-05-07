@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createDownloadUrl, recordDownloadEvent } from "@/lib/services/media-storage";
+import { getMediaAssetDownload } from "@/lib/services/media-storage";
 import type { MediaDownloadError, MediaDownloadSuccess } from "@/lib/types/media";
 
 export const runtime = "nodejs";
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
       return NextResponse.json(body, { status: 400 });
     }
 
-    const download = createDownloadUrl(parsed.data.mediaAssetId);
+    const download = await getMediaAssetDownload(parsed.data.mediaAssetId);
 
     if (!download) {
       const body: MediaDownloadError = {
@@ -39,8 +39,6 @@ export async function POST(request: Request) {
 
       return NextResponse.json(body, { status: 404 });
     }
-
-    recordDownloadEvent(parsed.data.mediaAssetId);
 
     const body: MediaDownloadSuccess = {
       success: true,

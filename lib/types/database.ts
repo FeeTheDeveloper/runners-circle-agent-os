@@ -189,70 +189,31 @@ type Updatable<T> = Partial<Omit<T, "id" | "created_at" | "updated_at">> & {
   updated_at?: string;
 };
 
+type TableDefinition<Row> = {
+  Row: Row & Record<string, unknown>;
+  Insert: Insertable<Row> & Record<string, unknown>;
+  Update: Updatable<Row> & Record<string, unknown>;
+  Relationships: [];
+};
+
 export interface Database {
   public: {
     Tables: {
-      profiles: {
-        Row: ProfileRow;
-        Insert: Insertable<ProfileRow>;
-        Update: Updatable<ProfileRow>;
-      };
-      agents: {
-        Row: AgentRow;
-        Insert: Insertable<AgentRow>;
-        Update: Updatable<AgentRow>;
-      };
-      agent_tasks: {
-        Row: AgentTaskRow;
-        Insert: Insertable<AgentTaskRow>;
-        Update: Updatable<AgentTaskRow>;
-      };
-      agent_outputs: {
-        Row: AgentOutputRow;
-        Insert: Insertable<AgentOutputRow>;
-        Update: Updatable<AgentOutputRow>;
-      };
-      generation_jobs: {
-        Row: GenerationJobRow;
-        Insert: Insertable<GenerationJobRow>;
-        Update: Updatable<GenerationJobRow>;
-      };
-      media_assets: {
-        Row: MediaAssetRow;
-        Insert: Insertable<MediaAssetRow>;
-        Update: Updatable<MediaAssetRow>;
-      };
-      campaigns: {
-        Row: CampaignRow;
-        Insert: Insertable<CampaignRow>;
-        Update: Updatable<CampaignRow>;
-      };
-      campaign_assets: {
-        Row: CampaignAssetRow;
-        Insert: Insertable<CampaignAssetRow>;
-        Update: Updatable<CampaignAssetRow>;
-      };
-      promotion_packages: {
-        Row: PromotionPackageRow;
-        Insert: Insertable<PromotionPackageRow>;
-        Update: Updatable<PromotionPackageRow>;
-      };
-      download_events: {
-        Row: DownloadEventRow;
-        Insert: Insertable<DownloadEventRow>;
-        Update: Updatable<DownloadEventRow>;
-      };
-      activity_events: {
-        Row: ActivityEventRow;
-        Insert: Insertable<ActivityEventRow>;
-        Update: Updatable<ActivityEventRow>;
-      };
-      brand_profiles: {
-        Row: BrandProfileRow;
-        Insert: Insertable<BrandProfileRow>;
-        Update: Updatable<BrandProfileRow>;
-      };
+      profiles: TableDefinition<ProfileRow>;
+      agents: TableDefinition<AgentRow>;
+      agent_tasks: TableDefinition<AgentTaskRow>;
+      agent_outputs: TableDefinition<AgentOutputRow>;
+      generation_jobs: TableDefinition<GenerationJobRow>;
+      media_assets: TableDefinition<MediaAssetRow>;
+      campaigns: TableDefinition<CampaignRow>;
+      campaign_assets: TableDefinition<CampaignAssetRow>;
+      promotion_packages: TableDefinition<PromotionPackageRow>;
+      download_events: TableDefinition<DownloadEventRow>;
+      activity_events: TableDefinition<ActivityEventRow>;
+      brand_profiles: TableDefinition<BrandProfileRow>;
     };
+    Views: {};
+    Functions: {};
   };
 }
 

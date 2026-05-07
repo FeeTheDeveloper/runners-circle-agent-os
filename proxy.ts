@@ -31,7 +31,7 @@ function isProtectedApiPath(pathname: string) {
   return pathname.startsWith("/api/") && !pathname.startsWith("/api/public/");
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const { response, user, isConfigured } = await refreshSupabaseSession(request);
 

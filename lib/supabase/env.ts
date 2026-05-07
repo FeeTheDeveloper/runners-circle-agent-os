@@ -3,6 +3,8 @@ export interface SupabasePublicEnv {
   supabaseUrl: string | null;
   supabaseAnonKey: string | null;
   mediaStorageBucket: string;
+  mediaThumbnailsBucket: string;
+  campaignExportsBucket: string;
   mediaStorageProvider: string;
 }
 
@@ -35,6 +37,8 @@ export function getSupabasePublicEnv(): SupabasePublicEnv {
     supabaseUrl: normalizeEnvValue(process.env.NEXT_PUBLIC_SUPABASE_URL),
     supabaseAnonKey: normalizeEnvValue(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
     mediaStorageBucket: normalizeEnvValue(process.env.MEDIA_STORAGE_BUCKET) ?? "media-assets",
+    mediaThumbnailsBucket: normalizeEnvValue(process.env.MEDIA_THUMBNAILS_BUCKET) ?? "media-thumbnails",
+    campaignExportsBucket: normalizeEnvValue(process.env.CAMPAIGN_EXPORTS_BUCKET) ?? "campaign-exports",
     mediaStorageProvider: normalizeEnvValue(process.env.MEDIA_STORAGE_PROVIDER) ?? "supabase",
   };
 }
@@ -72,7 +76,11 @@ export function getRuntimeStatus(): RuntimeStatus {
   return {
     supabase: supabaseReady,
     serviceRole: serviceRoleReady,
-    storageReady: serviceRoleReady && Boolean(publicEnv.mediaStorageBucket),
+    storageReady:
+      serviceRoleReady &&
+      Boolean(publicEnv.mediaStorageBucket) &&
+      Boolean(publicEnv.mediaThumbnailsBucket) &&
+      Boolean(publicEnv.campaignExportsBucket),
     openAi: serviceEnv.openAiKeyConfigured,
     storageBucket: publicEnv.mediaStorageBucket,
     storageProvider: publicEnv.mediaStorageProvider,
