@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, LibraryBig, MonitorCog, Rocket, Send, Sparkles, Workflow } from "lucide-react";
+import { InternalStandbyCard } from "@/components/billing/internal-standby-card";
 import { UpgradeCta } from "@/components/billing/upgrade-cta";
 import { UsageMeter } from "@/components/billing/usage-meter";
 import { AppShell } from "@/components/layout/app-shell";
@@ -20,11 +21,11 @@ import { getUsageSnapshot } from "@/lib/services/usage";
 import { getWorkflowProgress, getWorkflowRuns, getWorkflowTemplateById, getWorkflowTemplates } from "@/lib/services/workflows";
 
 const pipeline = [
-  "Prompt enters Studio",
-  "Dashboard assigns a ChatGPT Agent",
-  "Task becomes a generation job",
-  "Supabase stores asset outputs",
-  "Campaign and promotion packages are assembled",
+  "Workflow launch enters the command stack",
+  "Agents receive structured execution contracts",
+  "Generation jobs and media records are produced",
+  "Campaign packaging and operator review stay visible",
+  "Distribution queue takes the final handoff",
 ];
 
 export const dynamic = "force-dynamic";
@@ -96,14 +97,14 @@ export default async function DashboardPage() {
   return (
     <AppShell
       eyebrow="Dashboard"
-      title="Direct AI media operations, routed through existing ChatGPT Agents."
-      description="Runners Circle Agent OS is the command center for prompt intake, structured agent assignments, generation job tracking, media storage, and downstream campaign packaging."
+      title="Private command infrastructure for operator-run AI execution."
+      description="Runners Circle Agent OS now prioritizes workflows, agents, generation intake, media state, campaigns, operator oversight, and the distribution queue for a single-owner internal environment."
       action={
         <Link
-          href="/studio/image"
+          href="/workflows"
           className="inline-flex items-center gap-2 rounded-full bg-orange px-5 py-3 text-sm font-semibold text-black transition hover:bg-orange-soft"
         >
-          Launch image task
+          Launch workflow
           <ArrowRight className="size-4" />
         </Link>
       }
@@ -112,11 +113,11 @@ export default async function DashboardPage() {
         <article className="panel-strong p-6">
           <p className="eyebrow">Mission Flow</p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight text-foreground">
-            One pipeline from creative prompt to promotion package.
+            One private pipeline from workflow launch to distribution handoff.
           </h2>
           <p className="mt-4 max-w-3xl text-sm leading-7 text-muted">
-            The dashboard is built around operator intent: every action translates into a persistent task record,
-            a generation job, and a downstream path toward assets, campaigns, and promotion outputs.
+            The dashboard is built around operator intent: every action translates into a durable execution path across
+            workflows, agent routing, generated media, campaign packaging, and final queue management.
           </p>
 
           <div className="mt-6 grid gap-3">
@@ -223,34 +224,36 @@ export default async function DashboardPage() {
       </section>
 
       <section className="mt-5 grid gap-5 xl:grid-cols-[1.02fr_0.98fr]">
-        <article className="panel p-5 sm:p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="eyebrow">Billing Readiness</p>
-              <h2 className="mt-3 text-2xl font-semibold text-foreground">Usage risk and plan runway</h2>
-            </div>
-            <Link href="/billing" className="status-pill border-electric/20 bg-electric/10 text-electric">
-              Open billing
+          <article className="panel p-5 sm:p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="eyebrow">Billing Standby</p>
+                <h2 className="mt-3 text-2xl font-semibold text-foreground">Unlimited internal usage with billing preserved</h2>
+              </div>
+              <Link href="/billing" className="status-pill border-electric/20 bg-electric/10 text-electric">
+                Open billing
             </Link>
           </div>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
-              <p className="field-label">Current plan</p>
-              <p className="mt-2 text-2xl font-semibold capitalize text-foreground">{billingAccount.planTier}</p>
-              <p className="mt-2 text-sm text-muted">{billingAccount.billingStatus.replaceAll("_", " ")}</p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
+                <p className="field-label">Effective entitlement</p>
+                <p className="mt-2 text-2xl font-semibold capitalize text-foreground">{billingAccount.planTier}</p>
+                <p className="mt-2 text-sm text-muted">{billingAccount.billingStatus.replaceAll("_", " ")}</p>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
+                <p className="field-label">Usage warnings</p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{usageSnapshot.warnings.length}</p>
+                <p className="mt-2 text-sm text-muted">Internal mode keeps telemetry visible without enforcing limits.</p>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
+                <p className="field-label">Billing mode</p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">
+                  {billingReadiness.internalOperatorMode ? "Standby" : billingReadiness.checkoutConnected ? "Live" : "Pending"}
+                </p>
+                <p className="mt-2 text-sm text-muted">Stripe remains installed without blocking internal operations.</p>
+              </div>
             </div>
-            <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
-              <p className="field-label">Low-credit alerts</p>
-              <p className="mt-2 text-2xl font-semibold text-foreground">{usageSnapshot.warnings.length}</p>
-              <p className="mt-2 text-sm text-muted">Soft enforcement stays active in mock and internal mode.</p>
-            </div>
-            <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
-              <p className="field-label">Checkout status</p>
-              <p className="mt-2 text-2xl font-semibold text-foreground">{billingReadiness.checkoutConnected ? "Live" : "Pending"}</p>
-              <p className="mt-2 text-sm text-muted">No billing secrets are exposed to the browser.</p>
-            </div>
-          </div>
 
           <div className="mt-5 grid gap-4 md:grid-cols-2">
             <UsageMeter
@@ -272,7 +275,9 @@ export default async function DashboardPage() {
           <div className="mt-5 space-y-3">
             {usageSnapshot.warnings.length === 0 ? (
               <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
-                <p className="text-sm text-muted">No current billing pressure. Plan usage remains inside the configured guardrails.</p>
+                <p className="text-sm text-muted">
+                  Internal owner mode is active. Usage stays unlimited while billing telemetry remains available for future activation.
+                </p>
               </div>
             ) : (
               usageSnapshot.warnings.slice(0, 3).map((warning) => (
@@ -284,7 +289,11 @@ export default async function DashboardPage() {
           </div>
         </article>
 
-        <UpgradeCta currentPlanTier={billingAccount.planTier} options={upgradeOptions} compact />
+        {billingReadiness.internalOperatorMode ? (
+          <InternalStandbyCard compact />
+        ) : (
+          <UpgradeCta currentPlanTier={billingAccount.planTier} options={upgradeOptions} compact />
+        )}
       </section>
 
       <section className="mt-5 grid gap-5 xl:grid-cols-[1.02fr_0.98fr]">
@@ -421,25 +430,25 @@ export default async function DashboardPage() {
       </section>
 
       <section className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-6">
-        <Link href="/studio" className="panel interactive-border p-5">
-          <div className="flex items-center justify-between">
-            <p className="eyebrow">Studio</p>
-            <Sparkles className="size-5 text-orange" />
-          </div>
-          <h2 className="mt-4 text-2xl font-semibold text-foreground">Generate image and video tasks</h2>
-          <p className="mt-3 text-sm leading-6 text-muted">
-            Move from raw creative direction into structured generation jobs and agent assignments.
-          </p>
-        </Link>
-
         <Link href="/workflows" className="panel interactive-border p-5">
           <div className="flex items-center justify-between">
             <p className="eyebrow">Workflows</p>
             <Workflow className="size-5 text-electric" />
           </div>
-          <h2 className="mt-4 text-2xl font-semibold text-foreground">Launch reusable multi-agent chains</h2>
+          <h2 className="mt-4 text-2xl font-semibold text-foreground">Launch reusable multi-agent runs</h2>
           <p className="mt-3 text-sm leading-6 text-muted">
-            Start structured workflows that create agent tasks, execution packages, media records, campaign builds, and operator review lanes.
+            Start structured execution chains that coordinate agents, media, campaigns, and operator checkpoints.
+          </p>
+        </Link>
+
+        <Link href="/agents" className="panel interactive-border p-5">
+          <div className="flex items-center justify-between">
+            <p className="eyebrow">Agents</p>
+            <Sparkles className="size-5 text-orange" />
+          </div>
+          <h2 className="mt-4 text-2xl font-semibold text-foreground">Direct the execution roster</h2>
+          <p className="mt-3 text-sm leading-6 text-muted">
+            Review specialist coverage, task contracts, and routing readiness across the private command stack.
           </p>
         </Link>
 
@@ -454,14 +463,14 @@ export default async function DashboardPage() {
           </p>
         </Link>
 
-        <Link href="/promotions" className="panel interactive-border p-5">
+        <Link href="/studio" className="panel interactive-border p-5">
           <div className="flex items-center justify-between">
-            <p className="eyebrow">Promotion prep</p>
+            <p className="eyebrow">Generation</p>
             <Rocket className="size-5 text-orange-soft" />
           </div>
-          <h2 className="mt-4 text-2xl font-semibold text-foreground">Package for outbound launch</h2>
+          <h2 className="mt-4 text-2xl font-semibold text-foreground">Feed the image and video lanes</h2>
           <p className="mt-3 text-sm leading-6 text-muted">
-            Assemble media into promotion bundles with reusable channel notes and deliverable lists.
+            Move creative direction into structured generation contracts without losing operator control.
           </p>
         </Link>
 

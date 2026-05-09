@@ -1,3 +1,4 @@
+import { isInternalOperatorModeEnabled } from "@/lib/config/internal-mode";
 import { mockDistributionJobs } from "@/lib/data/distribution";
 import { createActivityEvent } from "@/lib/services/activity";
 import { getCampaignById } from "@/lib/services/campaigns";
@@ -156,10 +157,12 @@ function buildJobInputFromPromotion(
   }
 
   const campaign = getCampaignById(promotionPackage.campaignId);
-  const approvalRequired =
+  const internalOperatorMode = isInternalOperatorModeEnabled();
+  const approvalWouldNormallyBeRequired =
     (options?.metadata?.requireApproval as boolean | undefined) === true ||
     promotionPackage.reviewStatus !== "approved" ||
     !["approved", "scheduled", "published"].includes(promotionPackage.status);
+  const approvalRequired = internalOperatorMode ? false : approvalWouldNormallyBeRequired;
 
   const approvalReason = approvalRequired
     ? typeof options?.metadata?.approvalReason === "string"
@@ -187,6 +190,7 @@ function buildJobInputFromPromotion(
     campaignName: campaign?.name ?? promotionPackage.campaignId,
     promotionStatus: promotionPackage.status,
     promotionReviewStatus: promotionPackage.reviewStatus,
+    approvalBypassedByInternalOperatorMode: internalOperatorMode && approvalWouldNormallyBeRequired,
     liveCredentialsConfigured: false,
     liveIntegrationEnabled: false,
   };
@@ -258,14 +262,16 @@ export async function getDistributionActorContext(preferredTeamId?: string | nul
     null;
   const teamRole = team ? await getTeamRoleForUser(team.id, userId) : null;
 
+  const internalOperatorMode = isInternalOperatorModeEnabled();
+
   return {
     currentProfile,
     userId,
     team,
     teamRole,
-    canManage: canManageDistribution(teamRole),
-    canPublish: canManageDistribution(teamRole),
-    canOverrideApproval: canOverrideDistributionApproval(teamRole),
+    canManage: internalOperatorMode || canManageDistribution(teamRole),
+    canPublish: internalOperatorMode || canManageDistribution(teamRole),
+    canOverrideApproval: internalOperatorMode || canOverrideDistributionApproval(teamRole),
   };
 }
 
@@ -742,6 +748,7 @@ export function getReviewRequiredDistributionJobs(filters?: DistributionJobFilte
 export function getDistributionReadinessSummary(filters?: DistributionJobFilters): DistributionReadinessSummary {
   const jobs = getDistributionJobs(filters);
   const apiReadyJobs = jobs.filter((job) => job.provider === "api_ready").length;
+  const internalOperatorMode = isInternalOperatorModeEnabled();
 
   return {
     manualFallbackEnabled: jobs.some((job) => job.provider === "manual"),
@@ -749,6 +756,9 @@ export function getDistributionReadinessSummary(filters?: DistributionJobFilters
     apiReadyJobs,
     livePublishingEnabled: false,
     notes: [
+      ...(internalOperatorMode
+        ? ["Internal operator mode bypasses reviewer gating for distribution while keeping event logging active."]
+        : []),
       "Manual and mock publishing modes are active until real provider integrations are implemented.",
       apiReadyJobs > 0
         ? "Some jobs are marked api-ready, but live external publishing still needs provider-specific server integrations."

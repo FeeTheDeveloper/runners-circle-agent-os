@@ -1,3 +1,4 @@
+import { isInternalOperatorModeEnabled } from "@/lib/config/internal-mode";
 import { DEFAULT_MOCK_TEAM_ID } from "@/lib/data/mock-team";
 import { getNextPlanTier, getPlanFeature } from "@/lib/billing/plans";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/server";
@@ -62,7 +63,7 @@ function cloneEvent(event: UsageEvent): UsageEvent {
 }
 
 function supportsPersistentUsage() {
-  return isSupabaseConfigured() && isServiceRoleConfigured();
+  return !isInternalOperatorModeEnabled() && isSupabaseConfigured() && isServiceRoleConfigured();
 }
 
 function mapRowToUsageBalance(row: UsageCreditBalanceRow): UsageCreditBalance {
@@ -190,6 +191,18 @@ function ensureUsageBalance(userId: string, teamId?: string | null) {
     if (Date.parse(existing.resetAt) <= Date.now()) {
       resetMonthlyUsage({ userId, teamId });
       return findUsageBalance(userId, teamId) ?? existing;
+    }
+
+    if (isInternalOperatorModeEnabled()) {
+      existing.planTier = "enterprise";
+      existing.imageCredits = null;
+      existing.videoCredits = null;
+      existing.agentTaskCredits = null;
+      existing.workflowCredits = null;
+      existing.storageLimitMb = null;
+      existing.campaignLimit = null;
+      existing.distributionLimit = null;
+      existing.teamSeatLimit = null;
     }
 
     return existing;

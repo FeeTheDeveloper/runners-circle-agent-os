@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { isInternalOperatorModeEnabled } from "@/lib/config/internal-mode";
 import { refreshSupabaseSession } from "@/lib/supabase/middleware";
 
 const publicPagePaths = new Set(["/", "/sign-in", "/sign-up"]);
@@ -45,6 +46,10 @@ export async function proxy(request: NextRequest) {
 
   if (isApiRequest ? isPublicApi(pathname) : isPublicPage(pathname)) {
     return NextResponse.next();
+  }
+
+  if (isInternalOperatorModeEnabled()) {
+    return NextResponse.next({ request });
   }
 
   const session = await refreshSupabaseSession(request);

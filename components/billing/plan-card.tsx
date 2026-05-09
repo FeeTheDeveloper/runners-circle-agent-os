@@ -11,6 +11,7 @@ interface PlanCardProps {
   recommended?: boolean;
   teamId?: string | null;
   checkoutConnected?: boolean;
+  internalOperatorMode?: boolean;
 }
 
 function formatPrice(value: number | null) {
@@ -40,7 +41,12 @@ function getActionLabel(input: {
   interval: StripeBillingInterval;
   checkoutConnected: boolean;
   priceConfigured: boolean;
+  internalOperatorMode: boolean;
 }) {
+  if (input.internalOperatorMode) {
+    return "Internal standby";
+  }
+
   if (input.isCurrent) {
     return "Current plan";
   }
@@ -64,7 +70,14 @@ function getActionLabel(input: {
   return input.interval === "monthly" ? "Upgrade monthly" : "Upgrade yearly";
 }
 
-export function PlanCard({ plan, currentPlanTier, recommended = false, teamId = null, checkoutConnected = false }: PlanCardProps) {
+export function PlanCard({
+  plan,
+  currentPlanTier,
+  recommended = false,
+  teamId = null,
+  checkoutConnected = false,
+  internalOperatorMode = false,
+}: PlanCardProps) {
   const isCurrent = currentPlanTier === plan.planTier;
   const currentPlanIndex = currentPlanTier ? planTierOrder.indexOf(currentPlanTier) : -1;
   const planIndex = planTierOrder.indexOf(plan.planTier);
@@ -167,7 +180,13 @@ export function PlanCard({ plan, currentPlanTier, recommended = false, teamId = 
         {(["monthly", "yearly"] as const).map((interval) => {
           const priceConfigured = interval === "monthly" ? Boolean(plan.stripeMonthlyPriceId) : Boolean(plan.stripeYearlyPriceId);
           const disabled =
-            isCurrent || isDowngrade || plan.planTier === "free" || plan.planTier === "enterprise" || !checkoutConnected || !priceConfigured;
+            internalOperatorMode ||
+            isCurrent ||
+            isDowngrade ||
+            plan.planTier === "free" ||
+            plan.planTier === "enterprise" ||
+            !checkoutConnected ||
+            !priceConfigured;
 
           return (
             <button
@@ -190,6 +209,7 @@ export function PlanCard({ plan, currentPlanTier, recommended = false, teamId = 
                     interval,
                     checkoutConnected,
                     priceConfigured,
+                    internalOperatorMode,
                   })}
             </button>
           );
@@ -197,7 +217,9 @@ export function PlanCard({ plan, currentPlanTier, recommended = false, teamId = 
       </div>
 
       <div className="mt-4 rounded-2xl border border-white/8 bg-black/20 p-4 text-sm text-muted">
-        {plan.planTier === "enterprise"
+        {internalOperatorMode
+          ? "Internal operator mode keeps the billing catalog visible while live checkout stays inactive."
+          : plan.planTier === "enterprise"
           ? "Enterprise remains a sales-assisted plan until a custom contract flow is connected."
           : checkoutConnected
             ? "Hosted Stripe Checkout is available for upgrade paths with configured price ids."

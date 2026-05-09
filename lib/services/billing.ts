@@ -1,3 +1,4 @@
+import { isInternalOperatorModeEnabled } from "@/lib/config/internal-mode";
 import { DEFAULT_MOCK_TEAM_ID } from "@/lib/data/mock-team";
 import { getNextPlanTier, getPlanFeature, planFeatures, planTierOrder } from "@/lib/billing/plans";
 import { getStripeClientReadiness } from "@/lib/stripe/client";
@@ -149,7 +150,7 @@ function buildBillingAccount(input: CreateBillingAccountInput): BillingAccount {
 }
 
 function supportsPersistentBilling() {
-  return isSupabaseConfigured() && isServiceRoleConfigured();
+  return !isInternalOperatorModeEnabled() && isSupabaseConfigured() && isServiceRoleConfigured();
 }
 
 async function maybeGetSupabase() {
@@ -290,8 +291,31 @@ export function createBillingAccount(input: CreateBillingAccountInput) {
   return cloneAccount(account);
 }
 
+function applyInternalBillingOverlay(account: BillingAccount): BillingAccount {
+  if (!isInternalOperatorModeEnabled()) {
+    return cloneAccount(account);
+  }
+
+  return {
+    ...cloneAccount(account),
+    planTier: "enterprise",
+    billingStatus: "comped",
+    provider: "internal",
+    metadata: {
+      ...structuredClone(account.metadata),
+      billingBypassActive: true,
+      billingArchitecturePreserved: true,
+      internalOperatorMode: true,
+      originalPlanTier: account.planTier,
+      originalBillingStatus: account.billingStatus,
+      originalProvider: account.provider,
+    },
+  };
+}
+
 export function getBillingAccount(userId: string, teamId?: string | null) {
-  return cloneAccount(findLocalBillingAccount(userId, teamId) ?? createBillingAccount({ userId, teamId }));
+  const account = findLocalBillingAccount(userId, teamId) ?? createBillingAccount({ userId, teamId });
+  return applyInternalBillingOverlay(account);
 }
 
 export async function getBillingAccountAsync(userId: string, teamId?: string | null) {
@@ -304,7 +328,7 @@ export async function getBillingAccountAsync(userId: string, teamId?: string | n
   const row = await findBillingAccountRow(userId, teamId);
 
   if (row) {
-    return syncLocalBillingAccount(mapRowToBillingAccount(row));
+    return applyInternalBillingOverlay(syncLocalBillingAccount(mapRowToBillingAccount(row)));
   }
 
   const account = createBillingAccount({ userId, teamId });
@@ -326,7 +350,7 @@ export async function getBillingAccountAsync(userId: string, teamId?: string | n
     await supabase.from("billing_accounts").insert(payload);
   }
 
-  return account;
+  return applyInternalBillingOverlay(account);
 }
 
 export async function upsertBillingAccountRecord(input: CreateBillingAccountInput) {
@@ -477,6 +501,7 @@ export async function getUpgradeOptionsAsync(userId: string, teamId?: string | n
 }
 
 export function getBillingReadiness(): BillingReadiness {
+  const internalOperatorMode = isInternalOperatorModeEnabled();
   const stripeReadiness = getStripeClientReadiness();
   const livePriceCoverage = (["creator", "pro", "agency"] as const).every((planTier) => {
     const plan = planFeatures[planTier];
@@ -491,7 +516,16 @@ export function getBillingReadiness(): BillingReadiness {
     checkoutConnected: stripeReadiness.configured && livePriceCoverage,
     usageTrackingReady: true,
     mockFallbackEnabled: true,
+    internalOperatorMode,
+    billingEnforcementActive: !internalOperatorMode,
+    upgradePromptsEnabled: !internalOperatorMode,
     notes: [
+      ...(internalOperatorMode
+        ? [
+            "Internal operator mode keeps billing architecture installed but inactive.",
+            "Plan enforcement, upgrade prompts, and subscription pressure are bypassed while audit-safe telemetry remains available.",
+          ]
+        : []),
       "Billing logic is active in mock and server-managed mode.",
       ...stripeReadiness.notes,
       livePriceCoverage

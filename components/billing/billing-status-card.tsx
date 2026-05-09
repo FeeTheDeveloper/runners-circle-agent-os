@@ -23,6 +23,13 @@ interface StripePortalResponse {
 }
 
 function getStripeBadge(readiness: BillingReadiness) {
+  if (readiness.internalOperatorMode) {
+    return {
+      label: "Internal standby",
+      className: "status-pill border-electric/20 bg-electric/10 text-electric",
+    };
+  }
+
   if (readiness.checkoutConnected && readiness.portalConfigured && readiness.webhookConfigured) {
     return {
       label: "Stripe live",
@@ -47,7 +54,7 @@ export function BillingStatusCard({ account, readiness, warningCount = 0, teamId
   const [isManaging, setIsManaging] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const stripeBadge = getStripeBadge(readiness);
-  const portalDisabled = !readiness.portalConfigured || !account.stripeCustomerId;
+  const portalDisabled = (!readiness.portalConfigured && !readiness.internalOperatorMode) || !account.stripeCustomerId;
 
   async function handleManageBilling() {
     setIsManaging(true);
@@ -107,7 +114,13 @@ export function BillingStatusCard({ account, readiness, warningCount = 0, teamId
         </div>
         <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
           <p className="field-label">Portal</p>
-          <p className="mt-2 text-lg font-semibold text-foreground">{readiness.portalConfigured ? "Configured" : "Waiting on Stripe env"}</p>
+          <p className="mt-2 text-lg font-semibold text-foreground">
+            {readiness.internalOperatorMode
+              ? "Standby"
+              : readiness.portalConfigured
+                ? "Configured"
+                : "Waiting on Stripe env"}
+          </p>
         </div>
         <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
           <p className="field-label">Webhook sync</p>
@@ -125,9 +138,11 @@ export function BillingStatusCard({ account, readiness, warningCount = 0, teamId
           {isManaging ? "Opening..." : "Manage Billing"}
         </button>
         <span className="text-sm text-muted">
-          {account.stripeCustomerId
-            ? "Existing Stripe customers can manage subscriptions and payment methods here."
-            : "A Stripe customer record appears after the first live checkout completes."}
+          {readiness.internalOperatorMode
+            ? "Stripe stays installed for future activation. Internal mode keeps subscription management inactive unless an existing live customer record already exists."
+            : account.stripeCustomerId
+              ? "Existing Stripe customers can manage subscriptions and payment methods here."
+              : "A Stripe customer record appears after the first live checkout completes."}
         </span>
       </div>
 

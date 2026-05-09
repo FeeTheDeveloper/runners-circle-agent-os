@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AuthForm } from "@/components/auth/auth-form";
+import { isInternalOperatorModeEnabled } from "@/lib/config/internal-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,7 @@ function getSafeNextPath(nextPath?: string) {
 
 export default async function SignUpPage({ searchParams }: SignUpPageProps) {
   const params = await searchParams;
+  const internalOperatorMode = isInternalOperatorModeEnabled();
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-10 sm:px-6">
@@ -36,19 +38,22 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
 
         <div className="grid gap-5 xl:grid-cols-[0.92fr_1.08fr]">
           <section className="panel p-6 sm:p-8">
-            <p className="eyebrow">Ownership Layer</p>
+            <p className="eyebrow">{internalOperatorMode ? "Persistent Identity" : "Ownership Layer"}</p>
             <h2 className="mt-3 text-3xl font-semibold tracking-tight text-foreground">
-              Claim your operator profile.
+              {internalOperatorMode ? "Add persistence without changing internal access." : "Claim your operator profile."}
             </h2>
             <p className="mt-4 text-sm leading-7 text-muted">
-              Account creation establishes the user record that will eventually own agent tasks, generation jobs,
-              media assets, campaigns, promotion packages, and activity history in Supabase.
+              {internalOperatorMode
+                ? "Account creation is optional in private owner mode. Use it when you want Supabase-backed identity, ownership records, and future persistence across media, campaigns, and workflows."
+                : "Account creation establishes the user record that will eventually own agent tasks, generation jobs, media assets, campaigns, promotion packages, and activity history in Supabase."}
             </p>
 
             <div className="mt-6 grid gap-3">
               {[
                 "Profile bootstrap runs when the authenticated user enters the dashboard.",
-                "Protected API routes return 401 JSON when a session is missing.",
+                internalOperatorMode
+                  ? "Internal operator mode still bypasses friction even when no session is present."
+                  : "Protected API routes return 401 JSON when a session is missing.",
                 "Mock mode remains available when Supabase environment variables are not configured.",
               ].map((item) => (
                 <div key={item} className="rounded-2xl border border-white/8 bg-black/20 px-4 py-4">
@@ -62,6 +67,7 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
             mode="sign-up"
             nextPath={getSafeNextPath(params.next)}
             initialMessage={params.message ?? params.error ?? null}
+            internalOperatorMode={internalOperatorMode}
           />
         </div>
       </div>

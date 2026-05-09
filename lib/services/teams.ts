@@ -1,3 +1,4 @@
+import { isInternalOperatorModeEnabled } from "@/lib/config/internal-mode";
 import { mockTeam, mockTeamMembers } from "@/lib/data/mock-team";
 import { createActivityEvent } from "@/lib/services/activity";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -38,6 +39,10 @@ function cloneMember(member: TeamMember): TeamMember {
 
 function normalizeUserId(userId?: string | null) {
   return userId?.trim() || "mock-user";
+}
+
+function shouldUseLocalTeamStore() {
+  return isInternalOperatorModeEnabled() || !isSupabaseConfigured();
 }
 
 function canManageRole(actingRole: TeamRole | null, targetRole?: TeamRole) {
@@ -130,7 +135,11 @@ async function getSupabaseTeamRole(teamId: string, userId: string) {
 export async function getCurrentUserTeams(userId?: string | null) {
   const resolvedUserId = normalizeUserId(userId);
 
-  if (!isSupabaseConfigured()) {
+  if (shouldUseLocalTeamStore()) {
+    if (isInternalOperatorModeEnabled()) {
+      return teamsStore.map(cloneTeam);
+    }
+
     const teamIds = teamMembersStore.filter((member) => member.userId === resolvedUserId).map((member) => member.teamId);
     const ownedTeams = teamsStore.filter((team) => team.ownerUserId === resolvedUserId);
     const memberTeams = teamsStore.filter((team) => teamIds.includes(team.id));
@@ -179,7 +188,11 @@ export async function getPrimaryTeamForUser(userId?: string | null) {
 export async function getTeamRoleForUser(teamId: string, userId?: string | null): Promise<TeamRole | null> {
   const resolvedUserId = normalizeUserId(userId);
 
-  if (!isSupabaseConfigured()) {
+  if (shouldUseLocalTeamStore()) {
+    if (isInternalOperatorModeEnabled() && getMockTeamById(teamId)) {
+      return "owner";
+    }
+
     const team = getMockTeamById(teamId);
 
     if (team?.ownerUserId === resolvedUserId) {
@@ -203,7 +216,7 @@ export async function getTeamRoleForUser(teamId: string, userId?: string | null)
 }
 
 export async function getTeam(teamId: string) {
-  if (!isSupabaseConfigured()) {
+  if (shouldUseLocalTeamStore()) {
     const team = getMockTeamById(teamId);
     return team ? cloneTeam(team) : null;
   }
@@ -224,7 +237,7 @@ export async function getTeam(teamId: string) {
 }
 
 export async function getTeamMembers(teamId: string) {
-  if (!isSupabaseConfigured()) {
+  if (shouldUseLocalTeamStore()) {
     return teamMembersStore
       .filter((member) => member.teamId === teamId)
       .sort((left, right) => Date.parse(left.joinedAt) - Date.parse(right.joinedAt))
@@ -253,7 +266,7 @@ export async function createTeam(input: CreateTeamInput) {
     throw new Error("Team name is required.");
   }
 
-  if (!isSupabaseConfigured()) {
+  if (shouldUseLocalTeamStore()) {
     const timestamp = nowIso();
     const team: Team = {
       id: createTeamId(),
@@ -332,7 +345,7 @@ export async function inviteTeamMember(input: InviteTeamMemberInput) {
     throw new Error("Owner role cannot be assigned through invitations.");
   }
 
-  if (!isSupabaseConfigured()) {
+  if (shouldUseLocalTeamStore()) {
     ensureMockManager(teamId, invitedBy, input.role);
 
     const existingMember = getMockTeamMember(teamId, invitedUserId);
@@ -417,7 +430,7 @@ export async function updateTeamMemberRole(teamMemberId: string, role: TeamRole,
     throw new Error("Owner role cannot be assigned from this action.");
   }
 
-  if (!isSupabaseConfigured()) {
+  if (shouldUseLocalTeamStore()) {
     const member = getMockTeamMemberById(teamMemberId);
 
     if (!member) {
@@ -484,7 +497,7 @@ export async function updateTeamMemberRole(teamMemberId: string, role: TeamRole,
 export async function removeTeamMember(teamMemberId: string, actingUserId?: string | null) {
   const resolvedActingUserId = normalizeUserId(actingUserId);
 
-  if (!isSupabaseConfigured()) {
+  if (shouldUseLocalTeamStore()) {
     const memberIndex = teamMembersStore.findIndex((member) => member.id === teamMemberId);
 
     if (memberIndex < 0) {

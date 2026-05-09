@@ -1,6 +1,7 @@
 import "server-only";
 
 import type Stripe from "stripe";
+import { isInternalOperatorModeEnabled } from "@/lib/config/internal-mode";
 import { getPlanFeature, planFeatures, planTierOrder } from "@/lib/billing/plans";
 import { getStripeClient, getStripeClientReadiness } from "@/lib/stripe/client";
 import {
@@ -335,6 +336,23 @@ export async function getOrCreateStripeCustomer(input: Pick<StripeCheckoutInput,
 export async function createCheckoutSession(input: StripeCheckoutInput): Promise<StripeCheckoutSessionResult> {
   await syncPlanEntitlements();
 
+  if (isInternalOperatorModeEnabled()) {
+    return {
+      success: true,
+      mode: "mock",
+      url: buildMockBillingUrl({
+        mode: "checkout",
+        teamId: input.teamId,
+        planTier: input.planTier,
+        interval: input.interval,
+      }),
+      sessionId: null,
+      customerId: null,
+      priceId: mapPlanToStripePrice(input.planTier, input.interval),
+      message: "Internal operator mode keeps Stripe checkout installed but inactive.",
+    };
+  }
+
   if (input.planTier === "enterprise") {
     return {
       success: true,
@@ -428,6 +446,19 @@ export async function createCheckoutSession(input: StripeCheckoutInput): Promise
 }
 
 export async function createCustomerPortalSession(input: StripePortalInput): Promise<StripePortalSessionResult> {
+  if (isInternalOperatorModeEnabled()) {
+    return {
+      success: true,
+      mode: "mock",
+      url: buildMockBillingUrl({
+        mode: "portal",
+        teamId: input.teamId,
+      }),
+      customerId: null,
+      message: "Internal operator mode keeps the billing portal on standby until live billing is re-enabled.",
+    };
+  }
+
   const billingAccount = await getBillingAccountAsync(input.userId, input.teamId ?? null);
   const stripe = getStripeClient();
 

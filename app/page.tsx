@@ -1,34 +1,37 @@
 import Link from "next/link";
 import { ArrowRight, AudioWaveform, Bot, Film, FolderKanban, Sparkles } from "lucide-react";
+import { getRuntimeStatus } from "@/lib/supabase/server";
 
 const productLanes = [
   {
-    title: "Studio",
-    description: "Generate image and video prompts, route them to the right execution agent, and track job state.",
-    icon: Sparkles,
+    title: "Workflows",
+    description: "Launch reusable multi-agent runs that keep sequencing, packaging, and operator checkpoints visible from one command layer.",
+    icon: FolderKanban,
   },
   {
     title: "Agents",
-    description: "Operate existing ChatGPT Agents as a structured workforce with clear task ownership and status.",
+    description: "Direct the execution roster with explicit task contracts, handoff awareness, and operator-grade routing visibility.",
     icon: Bot,
   },
   {
-    title: "Campaigns",
-    description: "Package approved media into launch-ready campaign and promotion bundles without leaving the control plane.",
-    icon: FolderKanban,
+    title: "Distribution Queue",
+    description: "Move approved assets and campaigns into manual or mock delivery lanes without turning the platform into a public SaaS funnel.",
+    icon: Sparkles,
   },
 ];
 
 const workflow = [
-  "Prompt intake",
+  "Workflow launch",
   "Agent assignment",
   "Generation queue",
-  "Media storage",
+  "Media state",
   "Campaign packaging",
-  "Promotion prep",
+  "Distribution queue",
 ];
 
 export default function HomePage() {
+  const status = getRuntimeStatus();
+
   return (
     <main className="relative overflow-hidden px-5 py-8 sm:px-8 lg:px-12">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-7xl flex-col gap-8">
@@ -36,17 +39,23 @@ export default function HomePage() {
           <div className="absolute inset-y-0 right-0 hidden w-1/2 bg-[radial-gradient(circle_at_top,rgba(255,112,38,0.18),transparent_34%),radial-gradient(circle_at_80%_40%,rgba(31,219,255,0.14),transparent_26%)] lg:block" />
           <div className="relative grid gap-10 lg:grid-cols-[1.15fr_0.85fr] lg:items-end">
             <div className="space-y-8">
-              <div className="status-pill w-fit border-orange/25 bg-orange/10 text-orange-soft">
-                Athletic media operations for AI-native teams
+              <div
+                className={
+                  status.internalOperatorMode
+                    ? "status-pill w-fit border-electric/20 bg-electric/10 text-electric"
+                    : "status-pill w-fit border-orange/25 bg-orange/10 text-orange-soft"
+                }
+              >
+                {status.internalOperatorMode ? "Private internal operator mode" : "AI-native command infrastructure"}
               </div>
               <div className="space-y-4">
                 <p className="eyebrow">Runners Circle Agent OS</p>
                 <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-balance text-foreground sm:text-5xl lg:text-6xl">
-                  Build, assign, package, and promote media with ChatGPT Agents as the execution layer.
+                  Run private command infrastructure for workflows, agents, media, campaigns, and distribution.
                 </h1>
                 <p className="max-w-2xl text-base leading-7 text-muted sm:text-lg">
-                  This control panel is designed for direct creative operations: prompt intake, agent tasking,
-                  media generation orchestration, asset storage, campaign assembly, and promotion prep in one flow.
+                  This control panel is designed for owner-run internal operations: workflow launches, agent tasking,
+                  generation orchestration, media state, campaign assembly, and queue-based distribution from one surface.
                 </p>
               </div>
               <div className="flex flex-col gap-3 sm:flex-row">
@@ -58,10 +67,10 @@ export default function HomePage() {
                   <ArrowRight className="size-4" />
                 </Link>
                 <Link
-                  href="/studio"
+                  href="/workflows"
                   className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-foreground transition hover:border-electric/50 hover:bg-white/[0.08]"
                 >
-                  Open Studio
+                  Open Workflows
                   <Film className="size-4" />
                 </Link>
               </div>

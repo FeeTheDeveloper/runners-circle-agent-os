@@ -16,7 +16,7 @@ const mono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "Runners Circle Agent OS",
   description:
-    "Direct AI media generation and promotion control plane for orchestrating ChatGPT Agents.",
+    "Private command infrastructure for operator-run AI workflows, generation, campaigns, and distribution.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -28,4 +28,3 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     </html>
   );
 }
-

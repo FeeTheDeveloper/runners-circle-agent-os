@@ -42,7 +42,7 @@ export async function GET(_: Request, { params }: DistributionJobRouteProps) {
 
   const actorContext = await getDistributionActorContext(job.teamId);
 
-  if (actorContext.currentProfile.mode !== "mock" && !actorContext.currentProfile.isAuthenticated) {
+  if (actorContext.currentProfile.mode === "supabase" && !actorContext.currentProfile.isAuthenticated) {
     return buildError("Authentication is required to view distribution jobs.", 401);
   }
 
@@ -76,7 +76,7 @@ export async function PATCH(request: Request, { params }: DistributionJobRoutePr
 
     const actorContext = await getDistributionActorContext(job.teamId);
 
-    if (actorContext.currentProfile.mode !== "mock" && !actorContext.currentProfile.isAuthenticated) {
+    if (actorContext.currentProfile.mode === "supabase" && !actorContext.currentProfile.isAuthenticated) {
       return buildError("Authentication is required to update distribution jobs.", 401);
     }
 

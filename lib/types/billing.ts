@@ -104,6 +104,9 @@ export interface BillingReadiness {
   checkoutConnected: boolean;
   usageTrackingReady: boolean;
   mockFallbackEnabled: boolean;
+  internalOperatorMode: boolean;
+  billingEnforcementActive: boolean;
+  upgradePromptsEnabled: boolean;
   notes: string[];
 }
 

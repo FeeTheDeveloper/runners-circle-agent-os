@@ -52,7 +52,7 @@ export async function POST(request: Request) {
 
     const actorContext = await getDistributionActorContext(promotionPackage.teamId ?? null);
 
-    if (actorContext.currentProfile.mode !== "mock" && !actorContext.currentProfile.isAuthenticated) {
+    if (actorContext.currentProfile.mode === "supabase" && !actorContext.currentProfile.isAuthenticated) {
       return getUnauthorizedResponse("Authentication is required to create distribution jobs.", 401);
     }
 
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
     const result = createDistributionJobsFromPromotionPackage({
       promotionPackageId: parsed.data.promotionPackageId,
       channels: parsed.data.channels,
-      provider: parsed.data.provider ?? (actorContext.currentProfile.mode === "mock" ? "mock" : "manual"),
+      provider: parsed.data.provider ?? "manual",
       metadata: {
         requireApproval: parsed.data.requireApproval,
         requestedByUserId: actorContext.userId,

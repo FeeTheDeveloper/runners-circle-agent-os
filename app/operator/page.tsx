@@ -1,4 +1,5 @@
 import { ActivityFeed } from "@/components/operator/activity-feed";
+import { InternalStandbyCard } from "@/components/billing/internal-standby-card";
 import { BillingStatusCard } from "@/components/billing/billing-status-card";
 import { UpgradeCta } from "@/components/billing/upgrade-cta";
 import { UsageMeter } from "@/components/billing/usage-meter";
@@ -189,19 +190,19 @@ export default async function OperatorPage() {
   return (
     <AppShell
       eyebrow="Operator Console"
-      title="Deploy campaigns from the command layer."
-      description="The command room now tracks team operators, approval pressure, workflow readiness, distribution jobs, realtime subscription posture, campaigns, promotions, downloads, and execution handoffs from one shared surface."
+      title="Private operator oversight across workflows, agents, and distribution."
+      description="The command room now prioritizes workflow readiness, agent routing, generation outputs, queue pressure, campaigns, and distribution handoffs from one internal operations surface."
     >
       <section className="panel-strong p-5 sm:p-6">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">
             <p className="eyebrow">System Health</p>
             <h2 className="mt-3 text-3xl font-semibold tracking-tight text-foreground">
-              Deploy campaigns from the command layer.
+              Oversee the private command stack from one console.
             </h2>
             <p className="mt-4 text-sm leading-7 text-muted">
-              This console is the shared command-center layer for team awareness before live database wiring,
-              realtime subscriptions, direct publishing integrations, and external ChatGPT Agent execution are fully connected.
+              This console keeps workflows, agents, queue pressure, approvals, realtime posture, and distribution
+              handoffs visible while the platform operates in a single-owner internal mode.
             </p>
           </div>
 
@@ -261,11 +262,11 @@ export default async function OperatorPage() {
         <article className="panel p-5 sm:p-6">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="eyebrow">Usage Risk</p>
-              <h2 className="mt-3 text-2xl font-semibold text-foreground">Low credits, seat pressure, and billing readiness</h2>
+              <p className="eyebrow">Internal Capacity</p>
+              <h2 className="mt-3 text-2xl font-semibold text-foreground">Unlimited internal usage with billing telemetry</h2>
             </div>
-            <div className="status-pill border-warning/30 bg-warning/10 text-warning">
-              {usageSnapshot.warnings.length} alerts
+            <div className="status-pill border-electric/20 bg-electric/10 text-electric">
+              {billingReadiness.internalOperatorMode ? "standby" : `${usageSnapshot.warnings.length} alerts`}
             </div>
           </div>
 
@@ -289,7 +290,9 @@ export default async function OperatorPage() {
           <div className="mt-5 space-y-3">
             {usageSnapshot.warnings.length === 0 ? (
               <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
-                <p className="text-sm text-muted">No immediate billing risk. Soft enforcement is active and checkout remains intentionally disconnected.</p>
+                <p className="text-sm text-muted">
+                  Internal owner mode is active. Capacity remains unlimited while billing and Stripe readiness stay visible for later reactivation.
+                </p>
               </div>
             ) : (
               usageSnapshot.warnings.map((warning) => (
@@ -305,7 +308,11 @@ export default async function OperatorPage() {
       </section>
 
       <section className="mt-5">
-        <UpgradeCta currentPlanTier={billingAccount.planTier} options={upgradeOptions} compact />
+        {billingReadiness.internalOperatorMode ? (
+          <InternalStandbyCard compact />
+        ) : (
+          <UpgradeCta currentPlanTier={billingAccount.planTier} options={upgradeOptions} compact />
+        )}
       </section>
 
       <section className="mt-5 grid gap-5 xl:grid-cols-[0.96fr_1.04fr]">

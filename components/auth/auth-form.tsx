@@ -10,6 +10,7 @@ interface AuthFormProps {
   mode: "sign-in" | "sign-up";
   nextPath?: string | null;
   initialMessage?: string | null;
+  internalOperatorMode?: boolean;
 }
 
 const fieldClassName =
@@ -29,7 +30,7 @@ function getCallbackUrl(nextPath: string) {
   return callbackUrl.toString();
 }
 
-export function AuthForm({ mode, nextPath, initialMessage }: AuthFormProps) {
+export function AuthForm({ mode, nextPath, initialMessage, internalOperatorMode = false }: AuthFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -106,12 +107,22 @@ export function AuthForm({ mode, nextPath, initialMessage }: AuthFormProps) {
         <div>
           <p className="eyebrow">{mode === "sign-in" ? "Sign In" : "Sign Up"}</p>
           <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground">
-            {mode === "sign-in" ? "Re-enter the command room." : "Create your operator account."}
+            {internalOperatorMode
+              ? mode === "sign-in"
+                ? "Optional auth for the private command layer."
+                : "Add a persisted operator identity."
+              : mode === "sign-in"
+                ? "Re-enter the command room."
+                : "Create your operator account."}
           </h1>
           <p className="mt-4 text-sm leading-7 text-muted">
-            {mode === "sign-in"
-              ? "Use your email and password to unlock protected routes and take ownership of tasks, media, campaigns, and promotions."
-              : "Create a Supabase-backed operator identity so the platform can attach ownership to the pipeline as persistence comes online."}
+            {internalOperatorMode
+              ? mode === "sign-in"
+                ? "Internal owner mode already unlocks the platform. Sign in only if you want Supabase-backed identity, persisted ownership, and future database-linked history."
+                : "Create a Supabase-backed identity for persistence and ownership tracking without changing the internal operator bypass."
+              : mode === "sign-in"
+                ? "Use your email and password to unlock protected routes and take ownership of tasks, media, campaigns, and promotions."
+                : "Create a Supabase-backed operator identity so the platform can attach ownership to the pipeline as persistence comes online."}
           </p>
         </div>
 
@@ -184,7 +195,13 @@ export function AuthForm({ mode, nextPath, initialMessage }: AuthFormProps) {
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-5">
         <p className="text-sm text-muted">
-          {mode === "sign-in" ? "Need an account?" : "Already have an account?"}
+          {internalOperatorMode
+            ? mode === "sign-in"
+              ? "Need persistent auth?"
+              : "Already have persistent auth?"
+            : mode === "sign-in"
+              ? "Need an account?"
+              : "Already have an account?"}
         </p>
         <Link
           href={mode === "sign-in" ? `/sign-up?next=${encodeURIComponent(safeNextPath)}` : `/sign-in?next=${encodeURIComponent(safeNextPath)}`}

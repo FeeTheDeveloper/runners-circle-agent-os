@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BrandModeBadges } from "@/components/brand/brand-mode-badges";
 import { BillingStatusCard } from "@/components/billing/billing-status-card";
+import { InternalStandbyCard } from "@/components/billing/internal-standby-card";
 import { UpgradeCta } from "@/components/billing/upgrade-cta";
 import { UsageMeter } from "@/components/billing/usage-meter";
 import { AppShell } from "@/components/layout/app-shell";
@@ -18,6 +19,7 @@ const envVars = [
   "NEXT_PUBLIC_SUPABASE_ANON_KEY",
   "SUPABASE_SERVICE_ROLE_KEY",
   "OPENAI_API_KEY",
+  "INTERNAL_OPERATOR_MODE",
   "MEDIA_STORAGE_BUCKET",
   "MEDIA_THUMBNAILS_BUCKET",
   "CAMPAIGN_EXPORTS_BUCKET",
@@ -48,23 +50,25 @@ export default async function SettingsPage() {
   const upgradeOptions = getUpgradeOptions(userId, currentTeam?.id ?? null);
   const brandProfile = getBrandProfile(userId);
   const brandModeSettings = getBrandModeSettings(userId);
-  const authStatus = !status.supabase
-    ? "Mock mode"
-    : currentProfile.isAuthenticated
-      ? "Signed in"
-      : "Configured, waiting for session";
+  const authStatus = status.authBypassEnabled
+    ? "Internal owner bypass"
+    : !status.supabase
+      ? "Mock mode"
+      : currentProfile.isAuthenticated
+        ? "Signed in"
+        : "Configured, waiting for session";
 
   return (
     <AppShell
       eyebrow="Settings"
-      title="Configuration, auth lock, and runtime readiness."
-      description="Settings tracks the shift from mock-only scaffolding toward authenticated ownership and database-backed persistence without exposing sensitive credentials."
+      title="Runtime controls for the private command infrastructure."
+      description="Settings now emphasizes internal operator mode, provider readiness, auth posture, and environment signals without pushing public onboarding or billing upgrades."
       action={
         <Link
           href={currentProfile.isAuthenticated ? "/sign-out" : "/sign-in"}
           className="inline-flex items-center rounded-full bg-orange px-5 py-3 text-sm font-semibold text-black transition hover:bg-orange-soft"
         >
-          {currentProfile.isAuthenticated ? "Sign out" : "Open sign in"}
+          {currentProfile.isAuthenticated ? "Sign out" : status.authBypassEnabled ? "Open optional sign in" : "Open sign in"}
         </Link>
       }
     >
@@ -78,9 +82,10 @@ export default async function SettingsPage() {
           <div className="mt-6 grid gap-3 md:grid-cols-2">
             {[
               { label: "Auth status", value: authStatus },
+              { label: "Internal mode", value: status.internalOperatorMode ? "Enabled" : "Disabled" },
               { label: "Supabase connection", value: status.supabase ? "Ready" : "Pending" },
               { label: "Storage readiness", value: status.storageReady ? "Ready" : "Pending" },
-              { label: "OpenAI key", value: status.openAi ? "Ready" : "Pending" },
+              { label: "OpenAI provider", value: status.openAiStatus.label },
               { label: "Agent pipeline", value: status.agentPipeline ? "Ready" : "Pending" },
               { label: "Storage provider", value: status.storageProvider },
             ].map((item) => (
@@ -100,14 +105,18 @@ export default async function SettingsPage() {
               <p className="field-label">Mode</p>
               <p className="mt-2 text-lg font-semibold text-foreground">{currentProfile.mode}</p>
               <p className="mt-3 text-sm leading-6 text-muted">
-                {currentProfile.mode === "mock"
-                  ? "Mock mode remains available until Supabase auth is configured."
-                  : "Supabase session state now determines access to protected routes."}
+                {currentProfile.mode === "internal"
+                  ? "Internal owner mode is active with elevated permissions and reduced approval friction."
+                  : currentProfile.mode === "mock"
+                    ? "Mock mode remains available until Supabase auth is configured."
+                    : "Supabase session state now determines access to protected routes."}
               </p>
             </div>
             <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
               <p className="field-label">Email</p>
-              <p className="mt-2 text-sm font-medium text-foreground">{currentProfile.user?.email ?? "No authenticated user"}</p>
+              <p className="mt-2 text-sm font-medium text-foreground">
+                {currentProfile.user?.email ?? currentProfile.profile?.email ?? "No authenticated user"}
+              </p>
             </div>
             <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
               <p className="field-label">Profile</p>
@@ -133,21 +142,21 @@ export default async function SettingsPage() {
 
         <article className="panel p-5 sm:p-6">
           <p className="eyebrow">Usage Controls</p>
-          <h2 className="mt-3 text-2xl font-semibold text-foreground">Soft billing enforcement for the current environment</h2>
+          <h2 className="mt-3 text-2xl font-semibold text-foreground">Internal usage and operator bypass posture</h2>
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <UsageMeter
               label="Agent tasks"
               used={getUsedValue(currentPlan.agentTaskCredits, usageSnapshot.balance.agentTaskCredits)}
               limit={currentPlan.agentTaskCredits}
               unit="tasks"
-              detail="Task volume remains soft-enforced in mock and internal mode."
+              detail="Internal mode leaves task throughput unlimited while preserving telemetry."
             />
             <UsageMeter
               label="Workflows"
               used={getUsedValue(currentPlan.workflowCredits, usageSnapshot.balance.workflowCredits)}
               limit={currentPlan.workflowCredits}
               unit="runs"
-              detail="Workflow launches stay allowed, but upgrade hints surface when the runway gets short."
+              detail="Workflow launches remain unmetered in private owner mode."
             />
           </div>
         </article>
@@ -158,7 +167,11 @@ export default async function SettingsPage() {
       </section>
 
       <section className="mt-5">
-        <UpgradeCta currentPlanTier={billingAccount.planTier} options={upgradeOptions} compact />
+        {billingReadiness.internalOperatorMode ? (
+          <InternalStandbyCard compact />
+        ) : (
+          <UpgradeCta currentPlanTier={billingAccount.planTier} options={upgradeOptions} compact />
+        )}
       </section>
 
       <section className="mt-5">

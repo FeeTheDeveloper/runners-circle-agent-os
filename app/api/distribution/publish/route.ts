@@ -39,7 +39,7 @@ export async function POST(request: Request) {
 
     const actorContext = await getDistributionActorContext(job.teamId);
 
-    if (actorContext.currentProfile.mode !== "mock" && !actorContext.currentProfile.isAuthenticated) {
+    if (actorContext.currentProfile.mode === "supabase" && !actorContext.currentProfile.isAuthenticated) {
       return buildError("Authentication is required to publish distribution jobs.", 401);
     }
 

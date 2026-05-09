@@ -18,24 +18,29 @@ import {
   Workflow,
 } from "lucide-react";
 import clsx from "clsx";
+import type { RuntimeStatus } from "@/lib/supabase/env";
 
 const navigation = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/studio", label: "Studio", icon: Sparkles },
-  { href: "/agents", label: "Agents", icon: Bot },
+  { href: "/operator", label: "Operator Console", icon: SquareTerminal },
   { href: "/workflows", label: "Workflows", icon: Workflow },
+  { href: "/agents", label: "Agents", icon: Bot },
+  { href: "/studio", label: "Generation", icon: Sparkles },
   { href: "/media", label: "Media Library", icon: LibraryBig },
   { href: "/campaigns", label: "Campaigns", icon: FolderKanban },
   { href: "/promotions", label: "Promotions", icon: Rocket },
-  { href: "/distribution", label: "Distribution", icon: Send },
+  { href: "/distribution", label: "Distribution Queue", icon: Send },
+  { href: "/reviews", label: "Reviews", icon: BadgeCheck },
   { href: "/billing", label: "Billing", icon: CreditCard },
   { href: "/team", label: "Team", icon: Users },
-  { href: "/reviews", label: "Reviews", icon: BadgeCheck },
-  { href: "/operator", label: "Operator Console", icon: SquareTerminal },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  status: RuntimeStatus;
+}
+
+export function Sidebar({ status }: SidebarProps) {
   const pathname = usePathname();
 
   return (
@@ -45,10 +50,18 @@ export function Sidebar() {
           <p className="eyebrow">Runners Circle</p>
           <div className="mt-2">
             <h1 className="text-lg font-semibold text-foreground">Agent OS</h1>
-            <p className="mt-1 text-sm text-muted">AI media control layer</p>
+            <p className="mt-1 text-sm text-muted">Private command infrastructure</p>
           </div>
         </div>
-        <div className="status-pill border-orange/20 bg-orange/10 text-orange-soft">Live pipeline</div>
+        <div
+          className={
+            status.internalOperatorMode
+              ? "status-pill border-electric/20 bg-electric/10 text-electric"
+              : "status-pill border-orange/20 bg-orange/10 text-orange-soft"
+          }
+        >
+          {status.internalOperatorMode ? "Internal owner" : "Live pipeline"}
+        </div>
       </div>
 
       <nav className="mt-6 grid gap-2">
@@ -77,7 +90,8 @@ export function Sidebar() {
       <div className="mt-6 hidden rounded-[24px] border border-white/8 bg-black/20 p-4 lg:block">
         <p className="eyebrow">Execution Layer</p>
         <p className="mt-3 text-sm leading-6 text-muted">
-          Existing ChatGPT Agents handle execution. This app now assigns work, stores outputs, packages campaigns, and coordinates team reviews.
+          Existing ChatGPT Agents still handle execution. The app now prioritizes workflow control, generation intake,
+          media state, campaign packaging, operator oversight, and the distribution queue for private operations.
         </p>
       </div>
     </aside>

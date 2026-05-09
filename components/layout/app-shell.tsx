@@ -15,7 +15,7 @@ export function AppShell({ eyebrow, title, description, children, action }: AppS
 
   return (
     <div className="shell-grid">
-      <Sidebar />
+      <Sidebar status={status} />
       <div className="lg:pl-72">
         <Topbar eyebrow={eyebrow} title={title} description={description} status={status} action={action} />
         <main className="px-4 pb-10 sm:px-6 lg:px-8">{children}</main>
@@ -23,4 +23,3 @@ export function AppShell({ eyebrow, title, description, children, action }: AppS
     </div>
   );
 }
-

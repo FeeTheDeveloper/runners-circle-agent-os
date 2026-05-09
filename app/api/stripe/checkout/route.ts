@@ -54,7 +54,7 @@ export async function POST(request: Request) {
 
     const currentProfile = await getCurrentProfile();
 
-    if (currentProfile.mode !== "mock" && !currentProfile.isAuthenticated) {
+    if (currentProfile.mode === "supabase" && !currentProfile.isAuthenticated) {
       return NextResponse.json(
         {
           success: false,

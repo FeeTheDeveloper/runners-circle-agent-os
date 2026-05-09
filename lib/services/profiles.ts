@@ -1,10 +1,11 @@
 import type { User } from "@supabase/supabase-js";
+import { isInternalOperatorModeEnabled } from "@/lib/config/internal-mode";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import type { Json, ProfileRow, ProfileUpdate } from "@/lib/types/database";
 
 export interface CurrentProfileState {
-  mode: "mock" | "supabase";
+  mode: "mock" | "supabase" | "internal";
   isAuthenticated: boolean;
   user: {
     id: string;
@@ -67,6 +68,31 @@ function getMockProfileState(): CurrentProfileState {
   };
 }
 
+function getInternalProfileState(): CurrentProfileState {
+  const timestamp = nowIso();
+  const profile: ProfileRow = {
+    id: "profile_internal_owner",
+    user_id: "mock-user",
+    email: "owner@runnerscircle.internal",
+    full_name: "Internal Owner",
+    avatar_url: null,
+    role_label: "owner",
+    metadata: {
+      source: "internal_operator_mode",
+    },
+    created_at: timestamp,
+    updated_at: timestamp,
+  };
+
+  return {
+    mode: "internal",
+    isAuthenticated: false,
+    user: null,
+    profile,
+    error: null,
+  };
+}
+
 function toProfileState(user: User | null, profile: ProfileRow | null, error: string | null = null): CurrentProfileState {
   return {
     mode: "supabase",
@@ -97,15 +123,17 @@ async function getAuthenticatedUser() {
 }
 
 export async function getCurrentProfile(): Promise<CurrentProfileState> {
+  const internalOperatorMode = isInternalOperatorModeEnabled();
+
   if (!isSupabaseConfigured()) {
-    return getMockProfileState();
+    return internalOperatorMode ? getInternalProfileState() : getMockProfileState();
   }
 
   try {
     const { supabase, user, error } = await getAuthenticatedUser();
 
     if (error || !user) {
-      return toProfileState(null, null, error?.message ?? null);
+      return internalOperatorMode ? getInternalProfileState() : toProfileState(null, null, error?.message ?? null);
     }
 
     const { data: profile, error: profileError } = await supabase
@@ -120,20 +148,22 @@ export async function getCurrentProfile(): Promise<CurrentProfileState> {
 
     return toProfileState(user, profile ?? buildProfileFromUser(user));
   } catch {
-    return getMockProfileState();
+    return internalOperatorMode ? getInternalProfileState() : getMockProfileState();
   }
 }
 
 export async function ensureProfile(): Promise<CurrentProfileState> {
+  const internalOperatorMode = isInternalOperatorModeEnabled();
+
   if (!isSupabaseConfigured()) {
-    return getMockProfileState();
+    return internalOperatorMode ? getInternalProfileState() : getMockProfileState();
   }
 
   try {
     const { supabase, user, error } = await getAuthenticatedUser();
 
     if (error || !user) {
-      return toProfileState(null, null, error?.message ?? null);
+      return internalOperatorMode ? getInternalProfileState() : toProfileState(null, null, error?.message ?? null);
     }
 
     const current = await getCurrentProfile();
@@ -165,13 +195,15 @@ export async function ensureProfile(): Promise<CurrentProfileState> {
 
     return toProfileState(user, profile);
   } catch {
-    return getMockProfileState();
+    return internalOperatorMode ? getInternalProfileState() : getMockProfileState();
   }
 }
 
 export async function updateProfile(input: UpdateProfileInput): Promise<CurrentProfileState> {
+  const internalOperatorMode = isInternalOperatorModeEnabled();
+
   if (!isSupabaseConfigured()) {
-    const mockState = getMockProfileState();
+    const mockState = internalOperatorMode ? getInternalProfileState() : getMockProfileState();
 
     return {
       ...mockState,
@@ -190,7 +222,7 @@ export async function updateProfile(input: UpdateProfileInput): Promise<CurrentP
     const { supabase, user, error } = await getAuthenticatedUser();
 
     if (error || !user) {
-      return toProfileState(null, null, error?.message ?? null);
+      return internalOperatorMode ? getInternalProfileState() : toProfileState(null, null, error?.message ?? null);
     }
 
     const payload: ProfileUpdate = {
@@ -213,6 +245,6 @@ export async function updateProfile(input: UpdateProfileInput): Promise<CurrentP
 
     return toProfileState(user, profile);
   } catch {
-    return getMockProfileState();
+    return internalOperatorMode ? getInternalProfileState() : getMockProfileState();
   }
 }

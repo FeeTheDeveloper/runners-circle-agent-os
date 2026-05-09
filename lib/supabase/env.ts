@@ -1,3 +1,6 @@
+import { getInternalOperatorModeSummary } from "@/lib/config/internal-mode";
+import { getOpenAiProviderStatus, type OpenAiProviderStatus } from "@/lib/openai/provider";
+
 export interface SupabasePublicEnv {
   siteUrl: string | null;
   supabaseUrl: string | null;
@@ -18,12 +21,17 @@ export interface RuntimeStatus {
   serviceRole: boolean;
   storageReady: boolean;
   openAi: boolean;
+  openAiStatus: OpenAiProviderStatus;
   storageBucket: string;
   storageProvider: string;
   siteUrlConfigured: boolean;
   authLockEnabled: boolean;
   agentPipeline: boolean;
   mockMode: boolean;
+  internalOperatorMode: boolean;
+  authBypassEnabled: boolean;
+  billingBypassEnabled: boolean;
+  operatorElevationEnabled: boolean;
 }
 
 function normalizeEnvValue(value: string | undefined) {
@@ -72,6 +80,8 @@ export function getRuntimeStatus(): RuntimeStatus {
   const serviceEnv = getSupabaseServiceEnv();
   const supabaseReady = isSupabaseConfigured();
   const serviceRoleReady = isServiceRoleConfigured();
+  const internalMode = getInternalOperatorModeSummary();
+  const openAiStatus = getOpenAiProviderStatus();
 
   return {
     supabase: supabaseReady,
@@ -82,11 +92,16 @@ export function getRuntimeStatus(): RuntimeStatus {
       Boolean(publicEnv.mediaThumbnailsBucket) &&
       Boolean(publicEnv.campaignExportsBucket),
     openAi: serviceEnv.openAiKeyConfigured,
+    openAiStatus,
     storageBucket: publicEnv.mediaStorageBucket,
     storageProvider: publicEnv.mediaStorageProvider,
     siteUrlConfigured: Boolean(publicEnv.siteUrl),
-    authLockEnabled: supabaseReady,
+    authLockEnabled: supabaseReady && !internalMode.authBypassEnabled,
     agentPipeline: true,
-    mockMode: !supabaseReady,
+    mockMode: !supabaseReady || openAiStatus.state === "mock_mode",
+    internalOperatorMode: internalMode.enabled,
+    authBypassEnabled: internalMode.authBypassEnabled,
+    billingBypassEnabled: internalMode.billingBypassEnabled,
+    operatorElevationEnabled: internalMode.elevatedOperatorPermissions,
   };
 }
