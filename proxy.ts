@@ -1,74 +1,77 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { refreshSupabaseSession } from "@/lib/supabase/middleware";
 
-const PUBLIC_EXACT_PATHS = new Set([
-  "/",
-  "/sign-in",
-  "/sign-up",
-  "/sign-out",
-  "/auth/callback",
-  "/favicon.ico",
-  "/robots.txt",
-  "/sitemap.xml",
-]);
+const publicPagePaths = new Set(["/", "/sign-in", "/sign-up"]);
+const publicPagePrefixes = ["/auth/callback", "/sign-out"];
+const publicApiPaths = new Set(["/api/stripe/webhook"]);
 
-const PUBLIC_PREFIXES = ["/api/public/", "/_next/static/", "/_next/image/", "/assets/", "/images/", "/videos/"];
-const PROTECTED_PAGE_PREFIXES = ["/dashboard", "/studio", "/agents", "/media", "/campaigns", "/promotions", "/operator", "/settings"];
-
-function matchesPathPrefix(pathname: string, prefixes: string[]) {
-  return prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`) || pathname.startsWith(prefix));
+function isProductionRuntime() {
+  return process.env.NODE_ENV === "production";
 }
 
-function isPublicPath(pathname: string) {
-  return PUBLIC_EXACT_PATHS.has(pathname) || matchesPathPrefix(pathname, PUBLIC_PREFIXES);
+function isPublicPage(pathname: string) {
+  return publicPagePaths.has(pathname) || publicPagePrefixes.some((prefix) => pathname.startsWith(prefix));
 }
 
-function isProtectedPagePath(pathname: string) {
-  return PROTECTED_PAGE_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+function isPublicApi(pathname: string) {
+  return publicApiPaths.has(pathname);
 }
 
-function isProtectedApiPath(pathname: string) {
-  return pathname.startsWith("/api/") && !pathname.startsWith("/api/public/");
+function buildSignInRedirect(request: NextRequest, message: string) {
+  const redirectUrl = request.nextUrl.clone();
+  redirectUrl.pathname = "/sign-in";
+  redirectUrl.search = "";
+  redirectUrl.searchParams.set("message", message);
+  redirectUrl.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
+  return NextResponse.redirect(redirectUrl);
+}
+
+function buildApiError(message: string, status: number, code: string) {
+  return NextResponse.json(
+    {
+      success: false,
+      error: {
+        message,
+        code,
+      },
+    },
+    { status },
+  );
 }
 
 export async function proxy(request: NextRequest) {
-  const pathname = request.nextUrl.pathname;
-  const { response, user, isConfigured } = await refreshSupabaseSession(request);
+  const { pathname } = request.nextUrl;
+  const isApiRequest = pathname.startsWith("/api/");
 
-  if (!isConfigured) {
-    return NextResponse.next({ request });
+  if (isApiRequest ? isPublicApi(pathname) : isPublicPage(pathname)) {
+    return NextResponse.next();
   }
 
-  if (user && (pathname === "/sign-in" || pathname === "/sign-up")) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+  const session = await refreshSupabaseSession(request);
+
+  if (!session.isConfigured) {
+    if (!isProductionRuntime()) {
+      return session.response;
+    }
+
+    if (isApiRequest) {
+      return buildApiError("Supabase auth is not configured on this deployment.", 503, "AUTH_CONFIGURATION_REQUIRED");
+    }
+
+    return buildSignInRedirect(request, "Supabase auth is not configured for this deployment.");
   }
 
-  if (isPublicPath(pathname)) {
-    return response;
+  if (!session.user) {
+    if (isApiRequest) {
+      return buildApiError("Authentication is required for this API.", 401, "AUTH_REQUIRED");
+    }
+
+    return buildSignInRedirect(request, "Please sign in to continue.");
   }
 
-  if (!user && isProtectedApiPath(pathname)) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: {
-          message: "Authentication is required for this API route.",
-          code: "UNAUTHORIZED",
-        },
-      },
-      { status: 401 },
-    );
-  }
-
-  if (!user && isProtectedPagePath(pathname)) {
-    const signInUrl = new URL("/sign-in", request.url);
-    signInUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
-    return NextResponse.redirect(signInUrl);
-  }
-
-  return response;
+  return session.response;
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|assets|images|videos).*)", "/api/:path*"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|assets/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml)$).*)"],
 };

@@ -1,3 +1,5 @@
+import type { ReviewStatus } from "@/lib/types/team";
+
 export const mediaTypes = ["image", "video"] as const;
 export type MediaType = (typeof mediaTypes)[number];
 
@@ -12,6 +14,13 @@ export interface MediaAssetMetadata {
   fileName?: string | null;
   pendingUpload?: boolean;
   finalizeRequired?: boolean;
+  originalPrompt?: string;
+  enhancedPrompt?: string;
+  brandProfileId?: string | null;
+  brandProfileName?: string | null;
+  brandTone?: string | null;
+  brandModeApplied?: boolean;
+  brandWarnings?: string[];
   source?: MediaPersistenceSource;
   [key: string]: unknown;
 }
@@ -20,6 +29,7 @@ export interface MediaAsset {
   id: string;
   externalId?: string | null;
   userId: string;
+  teamId?: string | null;
   type: MediaType;
   title: string;
   prompt: string;
@@ -30,6 +40,8 @@ export interface MediaAsset {
   thumbnailBucket: string | null;
   thumbnailPath: string | null;
   status: MediaStatus;
+  reviewStatus?: ReviewStatus | null;
+  assignedReviewerId?: string | null;
   assignedAgentId: string;
   generationJobId: string | null;
   campaignId: string | null;
@@ -37,6 +49,7 @@ export interface MediaAsset {
   createdAt: string;
   updatedAt: string;
   source: MediaPersistenceSource;
+  usageSummary?: import("@/lib/types/billing").UsageCheckResult | null;
 }
 
 export interface DownloadEvent {
@@ -54,10 +67,13 @@ export interface CreateMediaAssetInput {
   prompt: string;
   thumbnailUrl: string;
   mediaUrl: string;
+  userId?: string | null;
+  teamId?: string | null;
   status?: MediaStatus;
   assignedAgentId: string;
   generationJobId?: string | null;
   campaignId?: string | null;
+  metadata?: MediaAssetMetadata;
 }
 
 export interface DownloadUrlResult {
@@ -108,6 +124,7 @@ export interface SignedDownloadUrlInput {
 
 export interface RegisterStoredMediaAssetInput {
   userId: string;
+  teamId?: string | null;
   type: MediaType;
   title: string;
   prompt: string;
@@ -123,6 +140,7 @@ export interface RegisterStoredMediaAssetInput {
   thumbnailUrl?: string | null;
   mediaUrl?: string | null;
   externalId?: string | null;
+  metadata?: MediaAssetMetadata;
 }
 
 export interface FinalizeUploadedMediaAssetInput {
@@ -145,6 +163,7 @@ export interface FinalizeUploadedMediaAssetInput {
 
 export interface CreateMediaAssetRecordInput {
   userId: string;
+  teamId?: string | null;
   assetId?: string;
   externalId?: string | null;
   type: MediaType;

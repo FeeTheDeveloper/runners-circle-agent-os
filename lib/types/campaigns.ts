@@ -1,3 +1,6 @@
+import type { BrandTone } from "@/lib/types/brand";
+import type { ReviewStatus } from "@/lib/types/team";
+
 export const campaignStatuses = ["draft", "building", "ready", "active", "paused", "completed", "failed"] as const;
 export type CampaignStatus = (typeof campaignStatuses)[number];
 
@@ -19,17 +22,25 @@ export type CampaignAssetStatus = (typeof campaignAssetStatuses)[number];
 
 export interface Campaign {
   id: string;
+  teamId?: string | null;
   name: string;
   objective: CampaignObjective;
   status: CampaignStatus;
+  reviewStatus?: ReviewStatus | null;
+  assignedReviewerId?: string | null;
   channels: CampaignChannel[];
   assignedMediaIds: string[];
   assignedAgentId: string;
   targetAudience: string;
   coreMessage: string;
   nextAction: string;
+  brandProfileId?: string | null;
+  brandProfileName?: string | null;
+  brandTone?: BrandTone | null;
+  brandModeApplied?: boolean;
   createdAt: string;
   updatedAt: string;
+  usageSummary?: import("@/lib/types/billing").UsageCheckResult | null;
 }
 
 export interface CampaignAsset {
@@ -50,6 +61,9 @@ export interface CampaignInput {
   targetAudience: string;
   coreMessage: string;
   assignedAgentId: string;
+  brandModeEnabled?: boolean;
+  teamId?: string | null;
+  userId?: string | null;
 }
 
 export type CampaignErrorCode =

@@ -1,3 +1,6 @@
+import type { BrandTone } from "@/lib/types/brand";
+import type { ReviewStatus } from "@/lib/types/team";
+
 export const promotionChannels = ["instagram", "tiktok", "youtube_shorts", "x", "email", "website"] as const;
 export type PromotionChannel = (typeof promotionChannels)[number];
 
@@ -32,15 +35,22 @@ export interface PromotionChecklistItem {
 
 export interface PromotionPackage {
   id: string;
+  teamId?: string | null;
   campaignId: string;
   mediaAssetIds: string[];
   channels: PromotionChannel[];
   status: PromotionStatus;
+  reviewStatus?: ReviewStatus | null;
+  assignedReviewerId?: string | null;
   captionSet: CaptionSet;
   checklist: PromotionChecklistItem[];
   assignedAgentId: string;
   tone: string;
   callToAction: string;
+  brandProfileId?: string | null;
+  brandProfileName?: string | null;
+  brandTone?: BrandTone | null;
+  brandModeApplied?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -52,6 +62,9 @@ export interface PromotionInput {
   tone: string;
   callToAction: string;
   assignedAgentId: string;
+  brandModeEnabled?: boolean;
+  teamId?: string | null;
+  userId?: string | null;
 }
 
 export type PromotionErrorCode =

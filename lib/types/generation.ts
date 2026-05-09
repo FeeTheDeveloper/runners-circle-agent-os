@@ -19,6 +19,8 @@ export interface ImageGenerationInput {
   aspectRatio: AspectRatio;
   brandMode: boolean;
   agentId: string;
+  userId?: string | null;
+  teamId?: string | null;
 }
 
 export interface VideoGenerationInput {
@@ -28,6 +30,8 @@ export interface VideoGenerationInput {
   format: VideoFormat;
   brandMode: boolean;
   agentId: string;
+  userId?: string | null;
+  teamId?: string | null;
 }
 
 export interface GenerationResult {
@@ -35,15 +39,23 @@ export interface GenerationResult {
   type: GenerationType;
   title: string;
   prompt: string;
+  originalPrompt: string;
+  enhancedPrompt: string;
   status: GenerationStatus;
   thumbnailUrl: string;
   mediaUrl: string;
   createdAt: string;
   assignedAgentId: string;
+  brandProfileId: string | null;
+  appliedBrandProfile: string | null;
+  brandTone: string | null;
+  brandModeApplied: boolean;
+  brandWarnings: string[];
   pendingUpload: boolean;
   storageBucket: string | null;
   storagePath: string | null;
   finalizeRequired: boolean;
+  usageSummary?: import("@/lib/types/billing").UsageCheckResult | null;
 }
 
 export type GenerationErrorCode = "VALIDATION_ERROR" | "INVALID_AGENT_TASK" | "INTERNAL_ERROR";

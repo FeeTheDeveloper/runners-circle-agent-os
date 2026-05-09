@@ -3,14 +3,19 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BadgeCheck,
   Bot,
+  CreditCard,
   FolderKanban,
   LayoutDashboard,
   LibraryBig,
   Rocket,
+  Send,
   Settings,
   Sparkles,
   SquareTerminal,
+  Users,
+  Workflow,
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -18,9 +23,14 @@ const navigation = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/studio", label: "Studio", icon: Sparkles },
   { href: "/agents", label: "Agents", icon: Bot },
+  { href: "/workflows", label: "Workflows", icon: Workflow },
   { href: "/media", label: "Media Library", icon: LibraryBig },
   { href: "/campaigns", label: "Campaigns", icon: FolderKanban },
   { href: "/promotions", label: "Promotions", icon: Rocket },
+  { href: "/distribution", label: "Distribution", icon: Send },
+  { href: "/billing", label: "Billing", icon: CreditCard },
+  { href: "/team", label: "Team", icon: Users },
+  { href: "/reviews", label: "Reviews", icon: BadgeCheck },
   { href: "/operator", label: "Operator Console", icon: SquareTerminal },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
@@ -67,10 +77,9 @@ export function Sidebar() {
       <div className="mt-6 hidden rounded-[24px] border border-white/8 bg-black/20 p-4 lg:block">
         <p className="eyebrow">Execution Layer</p>
         <p className="mt-3 text-sm leading-6 text-muted">
-          Existing ChatGPT Agents handle execution. This app assigns work, stores outputs, and packages campaigns.
+          Existing ChatGPT Agents handle execution. This app now assigns work, stores outputs, packages campaigns, and coordinates team reviews.
         </p>
       </div>
     </aside>
   );
 }
-

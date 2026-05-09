@@ -4,11 +4,16 @@ import { useState } from "react";
 import Image from "next/image";
 import { ArrowUpRight, Download, FolderKanban, Megaphone } from "lucide-react";
 import { agentRegistry } from "@/lib/agents/registry";
+import { BrandModeBadges } from "@/components/brand/brand-mode-badges";
+import { RequestReviewButton } from "@/components/reviews/request-review-button";
+import { ReviewStatusBadge } from "@/components/reviews/review-status-badge";
 import type { CampaignResponse } from "@/lib/types/campaigns";
 import type { MediaDownloadResponse, MediaAsset } from "@/lib/types/media";
+import type { ApprovalRequest } from "@/lib/types/team";
 
 interface MediaCardProps {
   asset: MediaAsset;
+  reviewRequest?: ApprovalRequest | null;
 }
 
 function getPromptPreview(prompt: string) {
@@ -32,13 +37,17 @@ function getStatusClassName(status: MediaAsset["status"]) {
   }
 }
 
-export function MediaCard({ asset }: MediaCardProps) {
+export function MediaCard({ asset, reviewRequest = null }: MediaCardProps) {
   const [downloadState, setDownloadState] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [downloadFeedback, setDownloadFeedback] = useState<string | null>(null);
   const [campaignState, setCampaignState] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [campaignFeedback, setCampaignFeedback] = useState<string | null>(null);
 
   const assignedAgent = agentRegistry.find((agent) => agent.id === asset.assignedAgentId)?.name ?? asset.assignedAgentId;
+  const brandProfileName =
+    typeof asset.metadata.brandProfileName === "string" ? asset.metadata.brandProfileName : "Runners Circle";
+  const brandTone = typeof asset.metadata.brandTone === "string" ? asset.metadata.brandTone : "premium";
+  const brandModeApplied = typeof asset.metadata.brandModeApplied === "boolean" ? asset.metadata.brandModeApplied : false;
 
   async function handleDownload() {
     setDownloadState("loading");
@@ -143,15 +152,22 @@ export function MediaCard({ asset }: MediaCardProps) {
 
       <p className="mt-4 text-sm leading-6 text-muted">{getPromptPreview(asset.prompt)}</p>
 
+      <div className="mt-5">
+        <BrandModeBadges active={brandModeApplied} profileName={brandProfileName} tone={brandTone} compact />
+      </div>
+
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
         <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
           <p className="field-label">Assigned agent</p>
           <p className="mt-2 text-sm font-medium text-foreground">{assignedAgent}</p>
         </div>
         <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
-          <p className="field-label">Generation job</p>
-          <p className="mt-2 font-[family-name:var(--font-mono)] text-xs text-foreground/80">
-            {asset.generationJobId ?? "pending"}
+          <p className="field-label">Review state</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {reviewRequest ? <ReviewStatusBadge status={reviewRequest.status} /> : <span className="status-pill">not requested</span>}
+          </div>
+          <p className="mt-2 text-xs text-foreground/70">
+            Reviewer: {reviewRequest?.assignedReviewerId ?? asset.assignedReviewerId ?? "Unassigned"}
           </p>
         </div>
       </div>
@@ -186,6 +202,11 @@ export function MediaCard({ asset }: MediaCardProps) {
             Prepare promotion
           </button>
         </div>
+        <RequestReviewButton
+          entityType="media_asset"
+          entityId={asset.id}
+          notes={`Review media asset "${asset.title}" before campaign or promotion handoff.`}
+        />
       </div>
 
       {downloadFeedback ? (

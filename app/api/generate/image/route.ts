@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createImageGeneration } from "@/lib/services/image-generation";
+import { getCurrentProfile } from "@/lib/services/profiles";
+import { getPrimaryTeamForUser } from "@/lib/services/teams";
 import { aspectRatios, type GenerationError, type GenerationResponse, type GenerationResult } from "@/lib/types/generation";
 
 export const runtime = "nodejs";
@@ -30,7 +32,14 @@ export async function POST(request: Request) {
       return NextResponse.json(body, { status: 400 });
     }
 
-    const result = createImageGeneration(parsed.data);
+    const currentProfile = await getCurrentProfile();
+    const userId = currentProfile.user?.id ?? currentProfile.profile?.user_id ?? "mock-user";
+    const team = await getPrimaryTeamForUser(userId);
+    const result = createImageGeneration({
+      ...parsed.data,
+      userId,
+      teamId: team?.id ?? null,
+    });
 
     if (!result.success) {
       return NextResponse.json(result, { status: 400 });

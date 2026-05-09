@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentProfile } from "@/lib/services/profiles";
+import { getPrimaryTeamForUser } from "@/lib/services/teams";
 import {
   createSignedUploadUrl,
   deleteStoredMediaAsset,
@@ -42,10 +43,12 @@ export async function POST(request: Request) {
 
     const currentProfile = await getCurrentProfile();
     const userId = currentProfile.user?.id ?? currentProfile.profile?.user_id ?? "mock-user";
+    const team = await getPrimaryTeamForUser(userId);
     const newAssetId = generateMediaAssetUuid();
 
     const asset = registerStoredMediaAsset({
       userId,
+      teamId: team?.id ?? null,
       assetId: newAssetId,
       externalId: parsed.data.externalId ?? null,
       type: parsed.data.type,

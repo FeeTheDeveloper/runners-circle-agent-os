@@ -4,6 +4,14 @@ import type { RecommendedAction } from "@/lib/services/operator";
 
 interface NextActionsPanelProps {
   actions: RecommendedAction[];
+  workflowSummary?: {
+    activeRuns: number;
+    stuckRuns: number;
+    needsReviewRuns: number;
+    nextAction: string | null;
+    nextActionHref: string | null;
+    nextRunLabel: string | null;
+  };
 }
 
 const priorityStyles = {
@@ -12,7 +20,7 @@ const priorityStyles = {
   urgent: "border-danger/30 bg-danger/10 text-danger",
 };
 
-export function NextActionsPanel({ actions }: NextActionsPanelProps) {
+export function NextActionsPanel({ actions, workflowSummary }: NextActionsPanelProps) {
   return (
     <section className="panel p-5 sm:p-6">
       <div className="flex items-start justify-between gap-4">
@@ -23,7 +31,35 @@ export function NextActionsPanel({ actions }: NextActionsPanelProps) {
         <div className="status-pill border-electric/20 bg-electric/10 text-electric">Execution guidance</div>
       </div>
 
-      <div className="mt-6 space-y-3">
+      {workflowSummary ? (
+        <div className="mt-6 rounded-2xl border border-white/8 bg-black/20 p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="field-label">Workflow command layer</p>
+              <p className="mt-2 text-sm leading-6 text-muted">
+                {workflowSummary.activeRuns} active runs, {workflowSummary.stuckRuns} stuck runs, {workflowSummary.needsReviewRuns} needing review.
+              </p>
+            </div>
+            <div className="status-pill border-electric/20 bg-electric/10 text-electric">Workflows</div>
+          </div>
+
+          <div className="mt-4 flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold text-foreground">{workflowSummary.nextRunLabel ?? "No active workflow run"}</p>
+              <p className="mt-2 text-sm leading-6 text-muted">
+                {workflowSummary.nextAction ?? "No workflow action is recommended right now."}
+              </p>
+            </div>
+            {workflowSummary.nextActionHref ? (
+              <Link href={workflowSummary.nextActionHref} className="text-sm font-medium text-electric transition hover:text-electric/80">
+                Open run
+              </Link>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      <div className={workflowSummary ? "mt-5 space-y-3" : "mt-6 space-y-3"}>
         {actions.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-white/10 bg-black/15 px-4 py-5">
             <p className="text-sm text-muted">No operator actions are recommended right now.</p>

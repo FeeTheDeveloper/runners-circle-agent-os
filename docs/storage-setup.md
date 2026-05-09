@@ -29,7 +29,7 @@ Request:
   "type": "image",
   "title": "Night Run Campaign Visual",
   "prompt": "Cinematic urban runner at night...",
-  "assignedAgentId": "image-generation",
+  "assignedAgentId": "image-generation-agent",
   "generationJobId": null,
   "campaignId": null,
   "externalId": null
@@ -105,7 +105,7 @@ Request:
   "thumbnailPath": "<user_id>/<asset_id>.jpg",
   "contentType": "image/png",
   "fileName": "night-run.png",
-  "assignedAgentId": "image-generation",
+  "assignedAgentId": "image-generation-agent",
   "generationJobId": null,
   "externalId": null
 }

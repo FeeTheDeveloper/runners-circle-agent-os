@@ -1,19 +1,35 @@
+import { BrandModeBadges } from "@/components/brand/brand-mode-badges";
 import { AppShell } from "@/components/layout/app-shell";
 import { PromptPanel } from "@/components/studio/prompt-panel";
+import { getBrandModeSettings, getBrandProfile } from "@/lib/services/brand";
+import { getCurrentProfile } from "@/lib/services/profiles";
 
-export default function StudioImagePage() {
+export default async function StudioImagePage() {
+  const currentProfile = await getCurrentProfile();
+  const userId = currentProfile.user?.id ?? currentProfile.profile?.user_id ?? "mock-user";
+  const brandProfile = getBrandProfile(userId);
+  const brandModeSettings = getBrandModeSettings(userId);
+
   return (
     <AppShell
       eyebrow="Studio / Image"
       title="Build and validate direct image generation contracts."
       description="This lane captures image prompts, validates the selected agent contract, and returns a mock completed result without real OpenAI generation, storage, or database persistence."
-      action={<div className="status-pill border-orange/20 bg-orange/10 text-orange-soft">Mock completed result</div>}
+      action={
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="status-pill border-orange/20 bg-orange/10 text-orange-soft">Mock completed result</div>
+          <BrandModeBadges active={brandModeSettings.enabled} profileName={brandProfile.name} tone={brandProfile.tone} compact />
+        </div>
+      }
     >
       <PromptPanel
         mode="image"
         title="Image generation contract"
         description="Submit the prompt payload that the image execution agent will eventually consume. The current response is a typed mock result that preserves the assigned agent id."
         defaultPrompt="Generate premium hero imagery for a runners apparel drop: athlete in motion, refined product detail, charcoal environment, orange edge lighting, and editorial campaign confidence."
+        brandProfileName={brandProfile.name}
+        brandTone={brandProfile.tone}
+        defaultBrandModeEnabled={brandModeSettings.enabled}
       />
 
       <section className="mt-5 grid gap-5 lg:grid-cols-2">
@@ -25,7 +41,7 @@ export default function StudioImagePage() {
               "Prompt language and subject focus",
               "Style direction for the image agent",
               "Aspect ratio for downstream media usage",
-              "Brand mode toggle for Runners Circle tone",
+              "Brand mode toggle for the active brand profile",
               "Assigned agent id for the execution layer",
             ].map((item) => (
               <div key={item} className="rounded-2xl border border-white/8 bg-black/20 px-4 py-4">

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createVideoGeneration } from "@/lib/services/video-generation";
+import { getCurrentProfile } from "@/lib/services/profiles";
+import { getPrimaryTeamForUser } from "@/lib/services/teams";
 import { videoFormats, type GenerationError, type GenerationResponse, type GenerationResult } from "@/lib/types/generation";
 
 export const runtime = "nodejs";
@@ -31,7 +33,14 @@ export async function POST(request: Request) {
       return NextResponse.json(body, { status: 400 });
     }
 
-    const result = createVideoGeneration(parsed.data);
+    const currentProfile = await getCurrentProfile();
+    const userId = currentProfile.user?.id ?? currentProfile.profile?.user_id ?? "mock-user";
+    const team = await getPrimaryTeamForUser(userId);
+    const result = createVideoGeneration({
+      ...parsed.data,
+      userId,
+      teamId: team?.id ?? null,
+    });
 
     if (!result.success) {
       return NextResponse.json(result, { status: 400 });

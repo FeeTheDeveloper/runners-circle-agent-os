@@ -1,6 +1,9 @@
 import { mockCampaignAssets, mockCampaigns } from "@/lib/data/campaigns";
+import { DEFAULT_MOCK_TEAM_ID } from "@/lib/data/mock-team";
+import { applyBrandModeToPrompt, applyBrandVoiceToCopy, getBrandModeSettings, getBrandProfile, validateBrandOutput } from "@/lib/services/brand";
 import { validateAgentTask } from "@/lib/services/agent-tasks";
 import { getMediaAssetById } from "@/lib/services/media-storage";
+import { checkUsageLimit, consumeUsageCredit, recordUsageEvent } from "@/lib/services/usage";
 import type {
   Campaign,
   CampaignAsset,
@@ -57,6 +60,28 @@ function getDefaultAssetRole(mediaAssetId: string) {
   }
 
   return mediaAsset.type === "video" ? "motion_support" : "hero_support";
+}
+
+function prioritizeChannels(channels: CampaignChannel[], preferredPlatforms: string[]) {
+  const preferred = preferredPlatforms.filter((platform): platform is CampaignChannel => channels.includes(platform as CampaignChannel));
+  const remainder = channels.filter((channel) => !preferred.includes(channel));
+
+  return [...preferred, ...remainder];
+}
+
+function resolveBrandContext(input: CampaignInput) {
+  const brandProfile = getBrandProfile(input.userId);
+  const storedSettings = getBrandModeSettings(input.userId);
+  const brandModeEnabled = input.brandModeEnabled ?? storedSettings.enabled;
+
+  return {
+    brandProfile,
+    brandModeSettings: {
+      ...storedSettings,
+      enabled: brandModeEnabled,
+    },
+    brandModeEnabled,
+  };
 }
 
 function validateCampaignInput(input: CampaignInput) {
@@ -129,24 +154,79 @@ export function createCampaign(input: CampaignInput): CampaignResponse<{ campaig
     return validation;
   }
 
+  const teamId =
+    input.teamId ??
+    input.mediaAssetIds
+      .map((mediaAssetId) => getMediaAssetById(mediaAssetId)?.teamId)
+      .find((value): value is string => typeof value === "string" && value.trim().length > 0) ??
+    DEFAULT_MOCK_TEAM_ID;
+  const usageSummary = checkUsageLimit({
+    userId: input.userId ?? "mock-user",
+    teamId,
+    type: "campaign_created",
+  });
+  const { brandProfile, brandModeSettings, brandModeEnabled } = resolveBrandContext(input);
   const timestamp = nowIso();
+  const brandPrompt = applyBrandModeToPrompt({
+    basePrompt: `${input.name}. ${input.coreMessage}. Audience: ${input.targetAudience}. Channels: ${input.channels.join(", ")}.`,
+    userId: input.userId,
+    kind: "campaign",
+    brandProfile,
+    brandModeSettings,
+  });
+  const coreMessage = applyBrandVoiceToCopy({
+    baseCopy: input.coreMessage.trim(),
+    userId: input.userId,
+    brandProfile,
+    brandModeSettings,
+  });
+  const campaignName = applyBrandVoiceToCopy({
+    baseCopy: input.name.trim(),
+    userId: input.userId,
+    brandProfile,
+    brandModeSettings: {
+      ...brandModeSettings,
+      enforceBrandVoice: false,
+    },
+  });
+  const orderedChannels = brandModeEnabled
+    ? prioritizeChannels([...input.channels], brandProfile.preferredPlatforms)
+    : [...input.channels];
+  const brandValidation = validateBrandOutput({
+    content: `${campaignName.enhancedCopy} ${brandPrompt.enhancedPrompt} ${coreMessage.enhancedCopy}`,
+    brandProfile,
+  });
+  const nextAction = brandModeEnabled
+    ? `Review the ${brandProfile.name} campaign build on ${orderedChannels[0]} and keep CTA language ${brandProfile.callToActionStyle.toLowerCase()}.`
+    : "Campaign queued for Campaign Builder Agent execution.";
   const campaign: Campaign = {
     id: createCampaignId(),
-    name: input.name.trim(),
+    teamId,
+    name: campaignName.enhancedCopy,
     objective: input.objective,
     status: "building",
-    channels: [...input.channels],
+    reviewStatus: null,
+    assignedReviewerId: null,
+    channels: orderedChannels,
     assignedMediaIds: [...input.mediaAssetIds],
     assignedAgentId: input.assignedAgentId,
     targetAudience: input.targetAudience.trim(),
-    coreMessage: input.coreMessage.trim(),
-    nextAction: "Campaign queued for Campaign Builder Agent execution.",
+    coreMessage: coreMessage.enhancedCopy,
+    nextAction:
+      brandValidation.warnings.length > 0
+        ? `${nextAction} Brand note: ${brandValidation.warnings[0]}`
+        : nextAction,
+    brandProfileId: brandProfile.id,
+    brandProfileName: brandProfile.name,
+    brandTone: brandProfile.tone,
+    brandModeApplied: brandModeEnabled,
     createdAt: timestamp,
     updatedAt: timestamp,
+    usageSummary,
   };
 
   const campaignAssets = input.mediaAssetIds.map((mediaAssetId) =>
-    createCampaignAssetRecord(campaign.id, mediaAssetId, input.channels[0], getDefaultAssetRole(mediaAssetId), "assigned"),
+    createCampaignAssetRecord(campaign.id, mediaAssetId, orderedChannels[0], getDefaultAssetRole(mediaAssetId), "assigned"),
   );
 
   campaignsStore.unshift(campaign);
@@ -158,8 +238,34 @@ export function createCampaign(input: CampaignInput): CampaignResponse<{ campaig
     if (mediaAsset) {
       mediaAsset.campaignId = campaign.id;
       mediaAsset.updatedAt = timestamp;
+      mediaAsset.metadata = {
+        ...mediaAsset.metadata,
+        campaignId: campaign.id,
+        brandProfileId: brandProfile.id,
+        brandProfileName: brandProfile.name,
+        brandTone: brandProfile.tone,
+        brandModeApplied: brandModeEnabled,
+      };
     }
   }
+
+  consumeUsageCredit({
+    userId: input.userId ?? "mock-user",
+    teamId,
+    type: "campaign_created",
+  });
+  recordUsageEvent({
+    userId: input.userId ?? "mock-user",
+    teamId,
+    type: "campaign_created",
+    relatedEntityType: "campaign",
+    relatedEntityId: campaign.id,
+    metadata: {
+      objective: campaign.objective,
+      channels: campaign.channels,
+      warning: usageSummary.warning,
+    },
+  });
 
   // TODO: Persist campaigns and campaign assets to Supabase Postgres when the database layer is enabled.
   // TODO: Trigger Campaign Builder Agent execution after the live agent bridge is connected.
@@ -229,10 +335,20 @@ export function addMediaToCampaign(
   const timestamp = nowIso();
   campaign.assignedMediaIds = [...campaign.assignedMediaIds, mediaAssetId];
   campaign.updatedAt = timestamp;
-  campaign.nextAction = `Review the newly linked asset "${mediaAsset.title}" in the campaign build.`;
+  campaign.nextAction = campaign.brandModeApplied
+    ? `Review the newly linked asset "${mediaAsset.title}" and keep it aligned with ${campaign.brandProfileName ?? "the active brand"} tone.`
+    : `Review the newly linked asset "${mediaAsset.title}" in the campaign build.`;
 
   mediaAsset.campaignId = campaign.id;
   mediaAsset.updatedAt = timestamp;
+  mediaAsset.metadata = {
+    ...mediaAsset.metadata,
+    campaignId: campaign.id,
+    brandProfileId: campaign.brandProfileId ?? mediaAsset.metadata.brandProfileId ?? null,
+    brandProfileName: campaign.brandProfileName ?? mediaAsset.metadata.brandProfileName ?? null,
+    brandTone: campaign.brandTone ?? mediaAsset.metadata.brandTone ?? null,
+    brandModeApplied: campaign.brandModeApplied ?? mediaAsset.metadata.brandModeApplied ?? false,
+  };
 
   const campaignAsset = createCampaignAssetRecord(
     campaign.id,

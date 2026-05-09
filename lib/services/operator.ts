@@ -2,9 +2,13 @@ import { agentRegistry } from "@/lib/agents/registry";
 import { getRecentActivity } from "@/lib/services/activity";
 import { getAgentTasks } from "@/lib/services/agent-tasks";
 import { getCampaigns } from "@/lib/services/campaigns";
+import { getDistributionJobs } from "@/lib/services/distribution";
 import { getMediaAssets } from "@/lib/services/media-storage";
 import { getPromotionPackages } from "@/lib/services/promotions";
+import { getPendingReviews } from "@/lib/services/reviews";
+import { getWorkflowProgress, getWorkflowRuns, getWorkflowTemplateById } from "@/lib/services/workflows";
 import { campaignStatuses } from "@/lib/types/campaigns";
+import { distributionStatuses } from "@/lib/types/distribution";
 import { promotionStatuses } from "@/lib/types/promotions";
 import type { ActivitySeverity, ActivityType } from "@/lib/types/activity";
 import { agentTaskStatuses } from "@/lib/types/agents";
@@ -22,6 +26,9 @@ export interface OperatorMetrics {
   readyMediaAssets: number;
   activeCampaigns: number;
   preparedPromotions: number;
+  distributionJobs: number;
+  scheduledDistributionJobs: number;
+  publishedDistributionJobs: number;
   downloadsToday: number;
 }
 
@@ -35,11 +42,12 @@ export interface QueueSnapshot {
   agentTasks: QueueStatusCount<AgentTaskStatus>[];
   campaigns: QueueStatusCount<CampaignStatus>[];
   promotions: QueueStatusCount<PromotionStatus>[];
+  distribution: QueueStatusCount<(typeof distributionStatuses)[number]>[];
 }
 
 export interface FailureSnapshotItem {
   id: string;
-  entityType: "agent_task" | "media_asset" | "campaign" | "promotion_package" | "system";
+  entityType: "agent_task" | "media_asset" | "campaign" | "promotion_package" | "distribution_job" | "system";
   entityId: string;
   title: string;
   description: string;
@@ -51,7 +59,7 @@ export interface FailureSnapshotItem {
 
 export interface ReviewQueueItem {
   id: string;
-  entityType: "agent_task" | "campaign" | "promotion_package";
+  entityType: "media_asset" | "campaign" | "promotion_package" | "workflow_run" | "execution_package" | "distribution_job";
   entityId: string;
   title: string;
   description: string;
@@ -120,6 +128,7 @@ export function getOperatorMetrics(): OperatorMetrics {
   const mediaAssets = getMediaAssets();
   const campaigns = getCampaigns();
   const promotionPackages = getPromotionPackages();
+  const distributionJobs = getDistributionJobs();
   const recentActivity = getRecentActivity(50);
 
   return {
@@ -132,6 +141,9 @@ export function getOperatorMetrics(): OperatorMetrics {
     readyMediaAssets: mediaAssets.filter((asset) => asset.status === "ready").length,
     activeCampaigns: campaigns.filter((campaign) => campaign.status === "active").length,
     preparedPromotions: getPreparedPromotionCount(promotionPackages.map((promotionPackage) => promotionPackage.status)),
+    distributionJobs: distributionJobs.length,
+    scheduledDistributionJobs: distributionJobs.filter((job) => job.status === "scheduled").length,
+    publishedDistributionJobs: distributionJobs.filter((job) => job.status === "published").length,
     downloadsToday: recentActivity.filter(
       (event) => event.type === "media_downloaded" && isToday(event.createdAt),
     ).length,
@@ -142,11 +154,13 @@ export function getQueueSnapshot(): QueueSnapshot {
   const tasks = getAgentTasks();
   const campaigns = getCampaigns();
   const promotionPackages = getPromotionPackages();
+  const distributionJobs = getDistributionJobs();
 
   return {
     agentTasks: getStatusCount(agentTaskStatuses, tasks.map((task) => task.status)),
     campaigns: getStatusCount(campaignStatuses, campaigns.map((campaign) => campaign.status)),
     promotions: getStatusCount(promotionStatuses, promotionPackages.map((promotionPackage) => promotionPackage.status)),
+    distribution: getStatusCount(distributionStatuses, distributionJobs.map((job) => job.status)),
   };
 }
 
@@ -155,6 +169,7 @@ export function getFailureSnapshot(): FailureSnapshotItem[] {
   const mediaAssets = getMediaAssets();
   const campaigns = getCampaigns();
   const promotionPackages = getPromotionPackages();
+  const distributionJobs = getDistributionJobs();
   const systemErrors = getRecentActivity(50).filter((event) => event.type === "system_error");
 
   const failures: FailureSnapshotItem[] = [
@@ -210,6 +225,19 @@ export function getFailureSnapshot(): FailureSnapshotItem[] {
         owner: promotionPackage.assignedAgentId,
         updatedAt: promotionPackage.updatedAt,
       })),
+    ...distributionJobs
+      .filter((job) => job.status === "failed")
+      .map((job) => ({
+        id: `failure_${job.id}`,
+        entityType: "distribution_job" as const,
+        entityId: job.id,
+        title: `${job.channel.replaceAll("_", " ")} distribution failed`,
+        description: job.errorMessage ?? "Publishing failed and needs operator follow-up.",
+        status: job.status,
+        severity: "error" as const,
+        owner: job.assignedAgentId ?? "Distribution Engine",
+        updatedAt: job.updatedAt,
+      })),
     ...systemErrors.map((event) => ({
       id: `failure_${event.id}`,
       entityType: "system" as const,
@@ -227,50 +255,16 @@ export function getFailureSnapshot(): FailureSnapshotItem[] {
 }
 
 export function getReviewQueue(): ReviewQueueItem[] {
-  const tasks = getAgentTasks();
-  const campaigns = getCampaigns();
-  const promotionPackages = getPromotionPackages();
-
-  const reviewItems: ReviewQueueItem[] = [
-    ...tasks
-      .filter((task) => task.status === "needs_review")
-      .map((task) => ({
-        id: `review_${task.id}`,
-        entityType: "agent_task" as const,
-        entityId: task.id,
-        title: `${task.agentName} review required`,
-        description: getTaskSummary(task),
-        status: task.status,
-        owner: task.agentName,
-        createdAt: task.updatedAt,
-      })),
-    ...campaigns
-      .filter((campaign) => campaign.status === "ready")
-      .map((campaign) => ({
-        id: `review_${campaign.id}`,
-        entityType: "campaign" as const,
-        entityId: campaign.id,
-        title: `${campaign.name} ready for packaging`,
-        description: campaign.nextAction,
-        status: campaign.status,
-        owner: campaign.assignedAgentId,
-        createdAt: campaign.updatedAt,
-      })),
-    ...promotionPackages
-      .filter((promotionPackage) => promotionPackage.status === "ready_for_review")
-      .map((promotionPackage) => ({
-        id: `review_${promotionPackage.id}`,
-        entityType: "promotion_package" as const,
-        entityId: promotionPackage.id,
-        title: `${promotionPackage.campaignId} ready for review`,
-        description: promotionPackage.captionSet.instagramCaption,
-        status: promotionPackage.status,
-        owner: promotionPackage.assignedAgentId,
-        createdAt: promotionPackage.updatedAt,
-      })),
-  ];
-
-  return reviewItems.sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt));
+  return getPendingReviews().map((request) => ({
+    id: request.id,
+    entityType: request.entityType,
+    entityId: request.entityId,
+    title: request.entityLabel,
+    description: request.notes || request.entityDescription,
+    status: request.status,
+    owner: request.assignedReviewerId ?? "reviewer",
+    createdAt: request.updatedAt,
+  }));
 }
 
 function getSystemAction(activityType: ActivityType) {
@@ -287,17 +281,70 @@ function getSystemAction(activityType: ActivityType) {
   };
 }
 
+function getReviewHref(entityType: ReviewQueueItem["entityType"]) {
+  if (entityType === "media_asset") {
+    return "/media";
+  }
+
+  if (entityType === "campaign") {
+    return "/campaigns";
+  }
+
+  if (entityType === "promotion_package") {
+    return "/promotions";
+  }
+
+  if (entityType === "workflow_run") {
+    return "/workflows";
+  }
+
+  if (entityType === "distribution_job") {
+    return "/distribution";
+  }
+
+  return "/agents";
+}
+
 function getFailurePriority(severity: ActivitySeverity): RecommendedAction["priority"] {
   return severity === "error" ? "urgent" : "high";
+}
+
+function getWorkflowPriority(status: string): RecommendedAction["priority"] {
+  if (status === "failed") {
+    return "urgent";
+  }
+
+  if (status === "needs_review" || status === "paused") {
+    return "high";
+  }
+
+  return "normal";
 }
 
 export function getNextRecommendedActions(): RecommendedAction[] {
   const failures = getFailureSnapshot();
   const reviewQueue = getReviewQueue();
   const campaigns = getCampaigns();
+  const distributionJobs = getDistributionJobs();
+  const workflowRuns = getWorkflowRuns();
   const warnings = getRecentActivity(20).filter(
     (event) => event.type === "system_warning" || event.type === "system_error",
   );
+  const workflowActions = workflowRuns
+    .map((run) => ({
+      run,
+      progress: getWorkflowProgress(run.id),
+      templateName: getWorkflowTemplateById(run.templateId)?.name ?? run.templateId,
+    }))
+    .filter(
+      (item): item is {
+        run: (typeof workflowRuns)[number];
+        progress: NonNullable<ReturnType<typeof getWorkflowProgress>>;
+        templateName: string;
+      } => item.progress !== null,
+    )
+    .filter((item) => ["ready", "running", "needs_review", "failed", "paused"].includes(item.run.status))
+    .slice(0, 2);
 
   const actions: RecommendedAction[] = [
     ...failures.slice(0, 2).map((failure) => ({
@@ -310,11 +357,11 @@ export function getNextRecommendedActions(): RecommendedAction[] {
     })),
     ...reviewQueue.slice(0, 2).map((item) => ({
       id: `action_${item.id}`,
-      title: `Review ${item.entityType.replaceAll("_", " ")}`,
+      title: `Review ${item.title}`,
       description: item.description,
       priority: "high" as const,
       source: item.owner,
-      href: item.entityType === "promotion_package" ? "/promotions" : "/operator",
+      href: getReviewHref(item.entityType),
     })),
     ...campaigns
       .filter((campaign) => campaign.status === "building" || campaign.status === "ready")
@@ -322,11 +369,43 @@ export function getNextRecommendedActions(): RecommendedAction[] {
       .map((campaign) => ({
         id: `action_${campaign.id}`,
         title: `Advance ${campaign.name}`,
-        description: campaign.nextAction,
-        priority: "normal" as const,
-        source: "Campaign Builder Agent",
-        href: "/campaigns",
+      description: campaign.nextAction,
+      priority: "normal" as const,
+      source: "Campaign Builder Agent",
+      href: "/campaigns",
+    })),
+    ...distributionJobs
+      .filter((job) => job.status === "ready" || job.status === "failed" || job.metadata.requiresApproval === true)
+      .slice(0, 2)
+      .map((job) => ({
+        id: `action_distribution_${job.id}`,
+        title:
+          job.metadata.requiresApproval === true
+            ? `Approve ${job.channel.replaceAll("_", " ")} distribution`
+            : job.status === "failed"
+              ? `Recover ${job.channel.replaceAll("_", " ")} distribution`
+              : `Deploy ${job.channel.replaceAll("_", " ")} distribution`,
+        description:
+          typeof job.metadata.approvalReason === "string" && job.metadata.approvalReason
+            ? job.metadata.approvalReason
+            : job.errorMessage ?? "Distribution job is ready for deployment or manual handoff.",
+        priority:
+          job.status === "failed"
+            ? ("urgent" as const)
+            : job.metadata.requiresApproval === true
+              ? ("high" as const)
+              : ("normal" as const),
+        source: job.assignedAgentId ?? "Distribution Engine",
+        href: "/distribution",
       })),
+    ...workflowActions.map((item) => ({
+      id: `action_workflow_${item.run.id}`,
+      title: `Advance ${item.templateName}`,
+      description: item.progress.nextAction,
+      priority: getWorkflowPriority(item.run.status),
+      source: item.progress.currentStepName ?? item.templateName,
+      href: `/workflows/${item.run.id}`,
+    })),
     ...warnings.slice(0, 1).map((event) => ({
       id: `action_${event.id}`,
       title: event.title,

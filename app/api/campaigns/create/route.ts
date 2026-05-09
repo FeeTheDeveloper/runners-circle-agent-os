@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createCampaign } from "@/lib/services/campaigns";
+import { getCurrentProfile } from "@/lib/services/profiles";
+import { getPrimaryTeamForUser } from "@/lib/services/teams";
 import { campaignChannels, campaignObjectives, type CampaignError, type CampaignResponse } from "@/lib/types/campaigns";
 
 export const runtime = "nodejs";
@@ -43,7 +45,14 @@ export async function POST(request: Request) {
       return NextResponse.json(body, { status: 400 });
     }
 
-    const result = createCampaign(parsed.data);
+    const currentProfile = await getCurrentProfile();
+    const userId = currentProfile.user?.id ?? currentProfile.profile?.user_id ?? "mock-user";
+    const team = await getPrimaryTeamForUser(userId);
+    const result = createCampaign({
+      ...parsed.data,
+      userId,
+      teamId: team?.id ?? null,
+    });
 
     if (!result.success) {
       return NextResponse.json(result, { status: getErrorStatus(result.error.code) });

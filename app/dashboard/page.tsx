@@ -1,14 +1,23 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, LibraryBig, MonitorCog, Rocket, Sparkles } from "lucide-react";
+import { ArrowRight, LibraryBig, MonitorCog, Rocket, Send, Sparkles, Workflow } from "lucide-react";
+import { UpgradeCta } from "@/components/billing/upgrade-cta";
+import { UsageMeter } from "@/components/billing/usage-meter";
 import { AppShell } from "@/components/layout/app-shell";
 import { ActivityFeed } from "@/components/operator/activity-feed";
+import { WorkflowRunCard } from "@/components/workflows/workflow-run-card";
+import { WorkflowTemplateCard } from "@/components/workflows/workflow-template-card";
+import { getBillingAccount, getBillingReadiness, getCurrentPlan, getUpgradeOptions } from "@/lib/services/billing";
 import { ensureProfile } from "@/lib/services/profiles";
 import { agentRegistry, getAgentOperationsSummary } from "@/lib/agents/registry";
 import { getRecentActivity } from "@/lib/services/activity";
 import { getCampaigns } from "@/lib/services/campaigns";
 import { getMediaAssets } from "@/lib/services/media-storage";
 import { getFailureSnapshot, getOperatorMetrics, getReviewQueue, getSystemAvailabilitySummary } from "@/lib/services/operator";
+import { getLatestApprovalRequestForEntity } from "@/lib/services/reviews";
+import { getCurrentUserTeams, getTeamMembers } from "@/lib/services/teams";
+import { getUsageSnapshot } from "@/lib/services/usage";
+import { getWorkflowProgress, getWorkflowRuns, getWorkflowTemplateById, getWorkflowTemplates } from "@/lib/services/workflows";
 
 const pipeline = [
   "Prompt enters Studio",
@@ -20,8 +29,21 @@ const pipeline = [
 
 export const dynamic = "force-dynamic";
 
+function getUsedValue(limit: number | null, remaining: number | null, fallbackUsed = 0) {
+  if (limit === null || remaining === null) {
+    return fallbackUsed;
+  }
+
+  return Math.max(limit - remaining, 0);
+}
+
 export default async function DashboardPage() {
-  await ensureProfile();
+  const currentProfile = await ensureProfile();
+  const userId = currentProfile.user?.id ?? currentProfile.profile?.user_id ?? "mock-user";
+  const teams = await getCurrentUserTeams(userId);
+  const currentTeam = teams[0] ?? null;
+  const teamMembers = currentTeam ? await getTeamMembers(currentTeam.id) : [];
+  const seatCount = currentTeam ? teamMembers.length : 1;
   const activity = getRecentActivity(4);
   const agentSummary = getAgentOperationsSummary();
   const campaigns = getCampaigns();
@@ -31,6 +53,23 @@ export default async function DashboardPage() {
   const failures = getFailureSnapshot();
   const reviewQueue = getReviewQueue();
   const availability = getSystemAvailabilitySummary();
+  const workflowTemplates = getWorkflowTemplates();
+  const activeWorkflowTemplates = workflowTemplates.slice(0, 2);
+  const workflowRuns = getWorkflowRuns();
+  const activeWorkflowRuns = workflowRuns.filter((run) => ["ready", "running", "paused", "needs_review"].includes(run.status)).slice(0, 2);
+  const billingAccount = getBillingAccount(userId, currentTeam?.id ?? null);
+  const currentPlan = getCurrentPlan(userId, currentTeam?.id ?? null);
+  const billingReadiness = getBillingReadiness();
+  const upgradeOptions = getUpgradeOptions(userId, currentTeam?.id ?? null);
+  const usageSnapshot = getUsageSnapshot(userId, currentTeam?.id ?? null, seatCount);
+  const reviewRequestByRunId = Object.fromEntries(
+    activeWorkflowRuns.map((run) => [run.id, getLatestApprovalRequestForEntity("workflow_run", run.id)]),
+  );
+  const workflowProgressByRunId = Object.fromEntries(
+    activeWorkflowRuns
+      .map((run) => [run.id, getWorkflowProgress(run.id)] as const)
+      .filter((entry): entry is readonly [string, NonNullable<ReturnType<typeof getWorkflowProgress>>] => entry[1] !== null),
+  );
   const metrics = [
     {
       label: "Registered agents",
@@ -187,6 +226,120 @@ export default async function DashboardPage() {
         <article className="panel p-5 sm:p-6">
           <div className="flex items-start justify-between gap-4">
             <div>
+              <p className="eyebrow">Billing Readiness</p>
+              <h2 className="mt-3 text-2xl font-semibold text-foreground">Usage risk and plan runway</h2>
+            </div>
+            <Link href="/billing" className="status-pill border-electric/20 bg-electric/10 text-electric">
+              Open billing
+            </Link>
+          </div>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
+              <p className="field-label">Current plan</p>
+              <p className="mt-2 text-2xl font-semibold capitalize text-foreground">{billingAccount.planTier}</p>
+              <p className="mt-2 text-sm text-muted">{billingAccount.billingStatus.replaceAll("_", " ")}</p>
+            </div>
+            <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
+              <p className="field-label">Low-credit alerts</p>
+              <p className="mt-2 text-2xl font-semibold text-foreground">{usageSnapshot.warnings.length}</p>
+              <p className="mt-2 text-sm text-muted">Soft enforcement stays active in mock and internal mode.</p>
+            </div>
+            <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
+              <p className="field-label">Checkout status</p>
+              <p className="mt-2 text-2xl font-semibold text-foreground">{billingReadiness.checkoutConnected ? "Live" : "Pending"}</p>
+              <p className="mt-2 text-sm text-muted">No billing secrets are exposed to the browser.</p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <UsageMeter
+              label="Image credits"
+              used={getUsedValue(currentPlan.imageCredits, usageSnapshot.balance.imageCredits)}
+              limit={currentPlan.imageCredits}
+              unit="credits"
+              detail="Generation capacity left this cycle."
+            />
+            <UsageMeter
+              label="Storage"
+              used={usageSnapshot.balance.storageUsedMb}
+              limit={currentPlan.storageLimitMb}
+              unit="MB"
+              detail="Storage burn from generated and uploaded assets."
+            />
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {usageSnapshot.warnings.length === 0 ? (
+              <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
+                <p className="text-sm text-muted">No current billing pressure. Plan usage remains inside the configured guardrails.</p>
+              </div>
+            ) : (
+              usageSnapshot.warnings.slice(0, 3).map((warning) => (
+                <div key={warning} className="rounded-2xl border border-warning/30 bg-warning/10 p-4">
+                  <p className="text-sm leading-6 text-foreground">{warning}</p>
+                </div>
+              ))
+            )}
+          </div>
+        </article>
+
+        <UpgradeCta currentPlanTier={billingAccount.planTier} options={upgradeOptions} compact />
+      </section>
+
+      <section className="mt-5 grid gap-5 xl:grid-cols-[1.02fr_0.98fr]">
+        <article className="panel p-5 sm:p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="eyebrow">Workflow Launcher</p>
+              <h2 className="mt-3 text-2xl font-semibold text-foreground">Start multi-agent runs from reusable templates</h2>
+            </div>
+            <Link href="/workflows" className="status-pill border-electric/20 bg-electric/10 text-electric">
+              Open workflows
+            </Link>
+          </div>
+
+          <div className="mt-6 grid gap-4">
+            {activeWorkflowTemplates.map((template) => (
+              <WorkflowTemplateCard key={template.id} template={template} compact />
+            ))}
+          </div>
+        </article>
+
+        <article className="panel p-5 sm:p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="eyebrow">Active Workflows</p>
+              <h2 className="mt-3 text-2xl font-semibold text-foreground">Runs already moving through the operator stack</h2>
+            </div>
+            <div className="status-pill">{activeWorkflowRuns.length}</div>
+          </div>
+
+          {activeWorkflowRuns.length === 0 ? (
+            <div className="mt-6 rounded-2xl border border-dashed border-white/10 bg-black/15 px-4 py-5">
+              <p className="text-sm text-muted">No workflow runs are active yet. Launch one from the workflow builder to start packaging cross-system work.</p>
+            </div>
+          ) : (
+            <div className="mt-6 grid gap-4">
+              {activeWorkflowRuns.map((run) => (
+                <WorkflowRunCard
+                  key={run.id}
+                  run={run}
+                  templateName={getWorkflowTemplateById(run.templateId)?.name ?? run.templateId}
+                  progress={workflowProgressByRunId[run.id] ?? null}
+                  reviewRequest={reviewRequestByRunId[run.id] ?? null}
+                  compact
+                />
+              ))}
+            </div>
+          )}
+        </article>
+      </section>
+
+      <section className="mt-5 grid gap-5 xl:grid-cols-[1.02fr_0.98fr]">
+        <article className="panel p-5 sm:p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
               <p className="eyebrow">Recent Media</p>
               <h2 className="mt-3 text-2xl font-semibold text-foreground">Latest generated assets in the control plane</h2>
             </div>
@@ -267,7 +420,7 @@ export default async function DashboardPage() {
         </article>
       </section>
 
-      <section className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+      <section className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-6">
         <Link href="/studio" className="panel interactive-border p-5">
           <div className="flex items-center justify-between">
             <p className="eyebrow">Studio</p>
@@ -276,6 +429,17 @@ export default async function DashboardPage() {
           <h2 className="mt-4 text-2xl font-semibold text-foreground">Generate image and video tasks</h2>
           <p className="mt-3 text-sm leading-6 text-muted">
             Move from raw creative direction into structured generation jobs and agent assignments.
+          </p>
+        </Link>
+
+        <Link href="/workflows" className="panel interactive-border p-5">
+          <div className="flex items-center justify-between">
+            <p className="eyebrow">Workflows</p>
+            <Workflow className="size-5 text-electric" />
+          </div>
+          <h2 className="mt-4 text-2xl font-semibold text-foreground">Launch reusable multi-agent chains</h2>
+          <p className="mt-3 text-sm leading-6 text-muted">
+            Start structured workflows that create agent tasks, execution packages, media records, campaign builds, and operator review lanes.
           </p>
         </Link>
 
@@ -298,6 +462,17 @@ export default async function DashboardPage() {
           <h2 className="mt-4 text-2xl font-semibold text-foreground">Package for outbound launch</h2>
           <p className="mt-3 text-sm leading-6 text-muted">
             Assemble media into promotion bundles with reusable channel notes and deliverable lists.
+          </p>
+        </Link>
+
+        <Link href="/distribution" className="panel interactive-border p-5">
+          <div className="flex items-center justify-between">
+            <p className="eyebrow">Distribution</p>
+            <Send className="size-5 text-electric" />
+          </div>
+          <h2 className="mt-4 text-2xl font-semibold text-foreground">Deploy through channel-ready jobs</h2>
+          <p className="mt-3 text-sm leading-6 text-muted">
+            Move approved promotion packages into mock, manual, or future live publishing lanes without exposing secrets to the browser.
           </p>
         </Link>
 

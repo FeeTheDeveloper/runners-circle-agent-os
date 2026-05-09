@@ -1,8 +1,16 @@
 import Link from "next/link";
 import { ArrowRight, Bot, ImagePlus, Video } from "lucide-react";
+import { BrandModeBadges } from "@/components/brand/brand-mode-badges";
 import { AppShell } from "@/components/layout/app-shell";
+import { getBrandModeSettings, getBrandProfile } from "@/lib/services/brand";
+import { getCurrentProfile } from "@/lib/services/profiles";
 
-export default function StudioPage() {
+export default async function StudioPage() {
+  const currentProfile = await getCurrentProfile();
+  const userId = currentProfile.user?.id ?? currentProfile.profile?.user_id ?? "mock-user";
+  const brandProfile = getBrandProfile(userId);
+  const brandModeSettings = getBrandModeSettings(userId);
+
   return (
     <AppShell
       eyebrow="Studio"
@@ -25,6 +33,9 @@ export default function StudioPage() {
           <h2 className="mt-3 text-3xl font-semibold tracking-tight text-foreground">
             Direct generation requests, shaped for the agent execution layer.
           </h2>
+          <div className="mt-5">
+            <BrandModeBadges active={brandModeSettings.enabled} profileName={brandProfile.name} tone={brandProfile.tone} />
+          </div>
           <p className="mt-4 max-w-3xl text-sm leading-7 text-muted">
             The Studio surface captures the creative brief, tags the assigned ChatGPT Agent, and returns a consistent
             generation contract before real model execution, storage, or database persistence are introduced.
@@ -33,6 +44,7 @@ export default function StudioPage() {
           <div className="mt-6 grid gap-3">
             {[
               "Prompt input is collected in the Studio lane.",
+              "Brand mode can inject visual, motion, and voice direction before generation.",
               "The selected agentId is included in the payload.",
               "The API route validates the request contract.",
               "The service returns a mock generation result for the dashboard-ready state.",

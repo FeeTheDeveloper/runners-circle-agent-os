@@ -1,4 +1,6 @@
 import { agentRegistry } from "@/lib/agents/registry";
+import { DEFAULT_MOCK_TEAM_ID } from "@/lib/data/mock-team";
+import { checkUsageLimit, consumeUsageCredit, recordUsageEvent } from "@/lib/services/usage";
 import type {
   AgentRegistryEntry,
   AgentTaskRecord,
@@ -21,6 +23,7 @@ function createTaskId() {
 function buildSeedTask(input: {
   id: string;
   agentId: string;
+  teamId?: string | null;
   taskType: AgentTaskType;
   status: AgentTaskStatus;
   priority: "low" | "normal" | "high" | "urgent";
@@ -38,6 +41,7 @@ function buildSeedTask(input: {
     id: input.id,
     agentId: agent.id,
     agentName: agent.name,
+    teamId: input.teamId ?? DEFAULT_MOCK_TEAM_ID,
     taskType: input.taskType,
     priority: input.priority,
     status: input.status,
@@ -52,17 +56,17 @@ function buildSeedTask(input: {
 const mockAgentTasks: AgentTaskRecord[] = [
   buildSeedTask({
     id: "task_seed_queued",
-    agentId: "creative-director",
-    taskType: "generate_video_prompt",
+    agentId: "creative-systems-builder",
+    taskType: "design_creative_system",
     status: "queued",
     priority: "high",
     input: {
-      prompt: "Create a launch video concept for Runners Circle Agent OS.",
+      prompt: "Build a reusable creative system for the Runners Circle Agent OS launch surfaces.",
     },
   }),
   buildSeedTask({
     id: "task_seed_executing",
-    agentId: "image-generation",
+    agentId: "image-generation-agent",
     taskType: "generate_image_prompt",
     status: "executing",
     priority: "normal",
@@ -72,7 +76,7 @@ const mockAgentTasks: AgentTaskRecord[] = [
   }),
   buildSeedTask({
     id: "task_seed_review",
-    agentId: "operator",
+    agentId: "operator-agent",
     taskType: "review_media",
     status: "needs_review",
     priority: "high",
@@ -82,7 +86,7 @@ const mockAgentTasks: AgentTaskRecord[] = [
   }),
   buildSeedTask({
     id: "task_seed_failed",
-    agentId: "analytics",
+    agentId: "analytics-agent",
     taskType: "analyze_performance",
     status: "failed",
     priority: "low",
@@ -120,6 +124,9 @@ export function validateAgentTask(agentId: string, taskType: AgentTaskType): Age
 
 export function createAgentTask(input: CreateAgentTaskInput) {
   const validation = validateAgentTask(input.agentId, input.taskType);
+  const userId =
+    input.userId ??
+    (typeof input.input.userId === "string" && input.input.userId.trim().length > 0 ? input.input.userId : "mock-user");
 
   if (!validation.valid) {
     return {
@@ -131,11 +138,17 @@ export function createAgentTask(input: CreateAgentTaskInput) {
     } as const;
   }
 
+  const usageSummary = checkUsageLimit({
+    userId,
+    teamId: input.teamId ?? DEFAULT_MOCK_TEAM_ID,
+    type: "agent_task",
+  });
   const timestamp = nowIso();
   const task: AgentTaskRecord = {
     id: createTaskId(),
     agentId: validation.agent.id,
     agentName: validation.agent.name,
+    teamId: input.teamId ?? DEFAULT_MOCK_TEAM_ID,
     taskType: input.taskType,
     priority: input.priority ?? "normal",
     status: "queued",
@@ -144,9 +157,27 @@ export function createAgentTask(input: CreateAgentTaskInput) {
     nextStep: NEXT_STEP_MESSAGE,
     createdAt: timestamp,
     updatedAt: timestamp,
+    usageSummary,
   };
 
   mockAgentTasks.unshift(task);
+  consumeUsageCredit({
+    userId,
+    teamId: task.teamId ?? DEFAULT_MOCK_TEAM_ID,
+    type: "agent_task",
+  });
+  recordUsageEvent({
+    userId,
+    teamId: task.teamId ?? DEFAULT_MOCK_TEAM_ID,
+    type: "agent_task",
+    relatedEntityType: "agent_task",
+    relatedEntityId: task.id,
+    metadata: {
+      agentId: task.agentId,
+      taskType: task.taskType,
+      warning: usageSummary.warning,
+    },
+  });
 
   // TODO: Persist task records to Supabase once the backend persistence layer is ready.
   // TODO: Trigger live ChatGPT Agent execution after the external execution bridge is implemented.

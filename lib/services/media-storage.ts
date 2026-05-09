@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { DEFAULT_MOCK_TEAM_ID } from "@/lib/data/mock-team";
 import { createActivityEvent } from "@/lib/services/activity";
+import { checkUsageLimit, consumeUsageCredit, recordUsageEvent } from "@/lib/services/usage";
 import { createSupabaseServerClient, createSupabaseServiceRoleClient } from "@/lib/supabase/server";
 import { getSupabasePublicEnv, isServiceRoleConfigured, isSupabaseConfigured } from "@/lib/supabase/env";
 import { mockMediaAssets } from "@/lib/data/media";
@@ -132,6 +134,67 @@ function asMetadata(value: unknown): MediaAssetMetadata {
   return {};
 }
 
+function estimateStorageUsageMb(input: {
+  type: MediaType;
+  metadata?: MediaAssetMetadata;
+}) {
+  const explicitValue = input.metadata?.fileSizeMb ?? input.metadata?.estimatedSizeMb;
+
+  if (typeof explicitValue === "number" && Number.isFinite(explicitValue) && explicitValue > 0) {
+    return Math.ceil(explicitValue);
+  }
+
+  return input.type === "video" ? 24 : 6;
+}
+
+function shouldTrackStorageUsage(status: MediaStatus, metadata?: MediaAssetMetadata) {
+  if (status === "processing") {
+    return false;
+  }
+
+  return metadata?.storageUsageTracked !== true;
+}
+
+function attachStorageUsageSummary(
+  asset: MediaAsset,
+  userId: string,
+  teamId: string | null | undefined,
+  amount: number,
+) {
+  const usageSummary = checkUsageLimit({
+    userId,
+    teamId: teamId ?? null,
+    type: "storage_upload",
+    amount,
+  });
+
+  asset.usageSummary = usageSummary;
+  asset.metadata = {
+    ...asset.metadata,
+    storageUsageTracked: true,
+    storageUsageMb: amount,
+  };
+  consumeUsageCredit({
+    userId,
+    teamId: teamId ?? null,
+    type: "storage_upload",
+    amount,
+  });
+  recordUsageEvent({
+    userId,
+    teamId: teamId ?? null,
+    type: "storage_upload",
+    amount,
+    relatedEntityType: "media_asset",
+    relatedEntityId: asset.id,
+    metadata: {
+      mediaType: asset.type,
+      status: asset.status,
+      warning: usageSummary.warning,
+    },
+  });
+}
+
 function mapRowToMediaAsset(row: MediaAssetRow): MediaAsset {
   const metadata = asMetadata(row.metadata);
   const campaignId =
@@ -141,6 +204,7 @@ function mapRowToMediaAsset(row: MediaAssetRow): MediaAsset {
     id: row.id,
     externalId: row.external_id ?? null,
     userId: row.user_id,
+    teamId: row.team_id,
     type: row.media_type,
     title: row.title,
     prompt: row.prompt,
@@ -151,7 +215,9 @@ function mapRowToMediaAsset(row: MediaAssetRow): MediaAsset {
     thumbnailBucket: row.thumbnail_bucket,
     thumbnailPath: row.thumbnail_path,
     status: row.status,
-    assignedAgentId: row.assigned_agent_id ?? "image-generation",
+    reviewStatus: null,
+    assignedReviewerId: null,
+    assignedAgentId: row.assigned_agent_id ?? "image-generation-agent",
     generationJobId: row.generation_job_id,
     campaignId,
     metadata: { ...metadata, source: "supabase" },
@@ -192,7 +258,9 @@ function syncLocalMediaAsset(assetId: string, input: RegisterStoredMediaAssetInp
   const thumbnailUrl = input.thumbnailUrl ?? getDefaultThumbnail(input.type);
   const mediaUrl = input.mediaUrl ?? getDefaultMediaPreview(input.type);
   const userId = input.userId || DEFAULT_MOCK_USER_ID;
+  const teamId = input.teamId ?? DEFAULT_MOCK_TEAM_ID;
   const externalId = input.externalId ?? null;
+  const metadata: MediaAssetMetadata = { source: "mock", ...(input.metadata ?? {}) };
 
   if (existingAsset) {
     existingAsset.type = input.type;
@@ -209,7 +277,9 @@ function syncLocalMediaAsset(assetId: string, input: RegisterStoredMediaAssetInp
     existingAsset.thumbnailBucket = input.thumbnailBucket ?? existingAsset.thumbnailBucket;
     existingAsset.thumbnailPath = input.thumbnailPath ?? existingAsset.thumbnailPath;
     existingAsset.userId = userId;
+    existingAsset.teamId = teamId;
     existingAsset.externalId = externalId ?? existingAsset.externalId ?? null;
+    existingAsset.metadata = { ...existingAsset.metadata, ...metadata };
     existingAsset.updatedAt = timestamp;
 
     return existingAsset;
@@ -219,6 +289,7 @@ function syncLocalMediaAsset(assetId: string, input: RegisterStoredMediaAssetInp
     id: assetId,
     externalId,
     userId,
+    teamId,
     type: input.type,
     title: input.title,
     prompt: input.prompt,
@@ -229,10 +300,12 @@ function syncLocalMediaAsset(assetId: string, input: RegisterStoredMediaAssetInp
     thumbnailBucket: input.thumbnailBucket ?? null,
     thumbnailPath: input.thumbnailPath ?? null,
     status: input.status ?? "processing",
+    reviewStatus: null,
+    assignedReviewerId: null,
     assignedAgentId: input.assignedAgentId,
     generationJobId: input.generationJobId ?? null,
     campaignId: input.campaignId ?? null,
-    metadata: { source: "mock" },
+    metadata,
     createdAt: timestamp,
     updatedAt: timestamp,
     source: "mock",
@@ -258,7 +331,8 @@ export function createMediaAsset(input: CreateMediaAssetInput): MediaAsset {
   const asset: MediaAsset = {
     id: createMediaId(),
     externalId: null,
-    userId: DEFAULT_MOCK_USER_ID,
+    userId: input.userId ?? DEFAULT_MOCK_USER_ID,
+    teamId: input.teamId ?? DEFAULT_MOCK_TEAM_ID,
     type: input.type,
     title: input.title,
     prompt: input.prompt,
@@ -269,14 +343,25 @@ export function createMediaAsset(input: CreateMediaAssetInput): MediaAsset {
     thumbnailBucket: null,
     thumbnailPath: null,
     status: input.status ?? "generated",
+    reviewStatus: null,
+    assignedReviewerId: null,
     assignedAgentId: input.assignedAgentId,
     generationJobId: input.generationJobId ?? null,
     campaignId: input.campaignId ?? null,
-    metadata: { source: "mock" },
+    metadata: { source: "mock", ...(input.metadata ?? {}) } as MediaAssetMetadata,
     createdAt: timestamp,
     updatedAt: timestamp,
     source: "mock",
   };
+
+  if (shouldTrackStorageUsage(asset.status, asset.metadata)) {
+    attachStorageUsageSummary(
+      asset,
+      asset.userId,
+      asset.teamId ?? DEFAULT_MOCK_TEAM_ID,
+      estimateStorageUsageMb({ type: asset.type, metadata: asset.metadata }),
+    );
+  }
 
   mediaAssetsStore.unshift(asset);
 
@@ -430,6 +515,15 @@ export function registerStoredMediaAsset(input: RegisterStoredMediaAssetInput): 
     storagePath: mediaLocation.path,
   });
 
+  if (shouldTrackStorageUsage(asset.status, asset.metadata)) {
+    attachStorageUsageSummary(
+      asset,
+      input.userId || DEFAULT_MOCK_USER_ID,
+      input.teamId ?? DEFAULT_MOCK_TEAM_ID,
+      estimateStorageUsageMb({ type: asset.type, metadata: asset.metadata }),
+    );
+  }
+
   upsertStoredMediaRecord({
     assetId,
     userId: input.userId || DEFAULT_MOCK_USER_ID,
@@ -499,6 +593,11 @@ export function recordDownloadEvent(mediaAssetId: string): DownloadEvent | null 
   };
 
   downloadEventsStore.unshift(event);
+  const usageSummary = checkUsageLimit({
+    userId: event.userId,
+    teamId: asset.teamId ?? null,
+    type: "media_download",
+  });
   createActivityEvent({
     type: "media_downloaded",
     severity: "info",
@@ -507,6 +606,23 @@ export function recordDownloadEvent(mediaAssetId: string): DownloadEvent | null 
     relatedEntityType: "media_asset",
     relatedEntityId: asset.id,
     actor: asset.assignedAgentId,
+  });
+  asset.usageSummary = usageSummary;
+  consumeUsageCredit({
+    userId: event.userId,
+    teamId: asset.teamId ?? null,
+    type: "media_download",
+  });
+  recordUsageEvent({
+    userId: event.userId,
+    teamId: asset.teamId ?? null,
+    type: "media_download",
+    relatedEntityType: "media_asset",
+    relatedEntityId: asset.id,
+    metadata: {
+      fileName: event.fileName,
+      fileType: event.fileType,
+    },
   });
 
   return event;
@@ -561,6 +677,7 @@ function buildInsertPayload(input: CreateMediaAssetRecordInput, userId: string) 
   return {
     id,
     user_id: userId,
+    team_id: input.teamId ?? null,
     external_id: input.externalId ?? null,
     title: input.title,
     prompt: input.prompt,
@@ -586,6 +703,7 @@ export async function createMediaAssetRecord(input: CreateMediaAssetRecordInput)
   if (!auth) {
     return registerStoredMediaAsset({
       userId: input.userId,
+      teamId: input.teamId ?? DEFAULT_MOCK_TEAM_ID,
       assetId: input.assetId,
       externalId: input.externalId ?? null,
       type: input.type,
@@ -616,7 +734,18 @@ export async function createMediaAssetRecord(input: CreateMediaAssetRecordInput)
     throw new Error(error?.message ?? "Unable to persist media asset.");
   }
 
-  return mapRowToMediaAsset(data as MediaAssetRow);
+  const mediaAsset = mapRowToMediaAsset(data as MediaAssetRow);
+
+  if (shouldTrackStorageUsage(mediaAsset.status, asMetadata(input.metadata))) {
+    attachStorageUsageSummary(
+      mediaAsset,
+      auth.userId,
+      input.teamId ?? null,
+      estimateStorageUsageMb({ type: input.type, metadata: asMetadata(input.metadata) }),
+    );
+  }
+
+  return mediaAsset;
 }
 
 export async function updateMediaAssetRecord(
@@ -812,7 +941,7 @@ export async function finalizeUploadedMediaAsset(
   const status: MediaStatus = input.status ?? "ready";
   const auth = await getAuthenticatedSupabaseContext();
   const userId = auth?.userId ?? DEFAULT_MOCK_USER_ID;
-  const assignedAgentId = input.assignedAgentId ?? "image-generation";
+  const assignedAgentId = input.assignedAgentId ?? "image-generation-agent";
 
   return createMediaAssetRecord({
     userId,

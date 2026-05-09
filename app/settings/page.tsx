@@ -1,6 +1,15 @@
 import Link from "next/link";
+import { BrandModeBadges } from "@/components/brand/brand-mode-badges";
+import { BillingStatusCard } from "@/components/billing/billing-status-card";
+import { UpgradeCta } from "@/components/billing/upgrade-cta";
+import { UsageMeter } from "@/components/billing/usage-meter";
 import { AppShell } from "@/components/layout/app-shell";
+import { BrandProfilePanel } from "@/components/settings/brand-profile-panel";
+import { getBrandModeSettings, getBrandProfile } from "@/lib/services/brand";
+import { getBillingAccount, getBillingReadiness, getCurrentPlan, getUpgradeOptions } from "@/lib/services/billing";
 import { getCurrentProfile } from "@/lib/services/profiles";
+import { getCurrentUserTeams, getTeamMembers } from "@/lib/services/teams";
+import { getUsageSnapshot } from "@/lib/services/usage";
 import { getRuntimeStatus } from "@/lib/supabase/server";
 
 const envVars = [
@@ -17,9 +26,28 @@ const envVars = [
 
 export const dynamic = "force-dynamic";
 
+function getUsedValue(limit: number | null, remaining: number | null, fallbackUsed = 0) {
+  if (limit === null || remaining === null) {
+    return fallbackUsed;
+  }
+
+  return Math.max(limit - remaining, 0);
+}
+
 export default async function SettingsPage() {
   const status = getRuntimeStatus();
   const currentProfile = await getCurrentProfile();
+  const userId = currentProfile.user?.id ?? currentProfile.profile?.user_id ?? "mock-user";
+  const teams = await getCurrentUserTeams(userId);
+  const currentTeam = teams[0] ?? null;
+  const teamMembers = currentTeam ? await getTeamMembers(currentTeam.id) : [];
+  const usageSnapshot = getUsageSnapshot(userId, currentTeam?.id ?? null, currentTeam ? teamMembers.length : 1);
+  const billingAccount = getBillingAccount(userId, currentTeam?.id ?? null);
+  const billingReadiness = getBillingReadiness();
+  const currentPlan = getCurrentPlan(userId, currentTeam?.id ?? null);
+  const upgradeOptions = getUpgradeOptions(userId, currentTeam?.id ?? null);
+  const brandProfile = getBrandProfile(userId);
+  const brandModeSettings = getBrandModeSettings(userId);
   const authStatus = !status.supabase
     ? "Mock mode"
     : currentProfile.isAuthenticated
@@ -44,6 +72,9 @@ export default async function SettingsPage() {
         <article className="panel p-5 sm:p-6">
           <p className="eyebrow">Runtime Status</p>
           <h2 className="mt-3 text-2xl font-semibold text-foreground">Current environment signals</h2>
+          <div className="mt-5">
+            <BrandModeBadges active={brandModeSettings.enabled} profileName={brandProfile.name} tone={brandProfile.tone} />
+          </div>
           <div className="mt-6 grid gap-3 md:grid-cols-2">
             {[
               { label: "Auth status", value: authStatus },
@@ -95,6 +126,39 @@ export default async function SettingsPage() {
             ) : null}
           </div>
         </article>
+      </section>
+
+      <section className="mt-5 grid gap-5 xl:grid-cols-[0.96fr_1.04fr]">
+        <BillingStatusCard account={billingAccount} readiness={billingReadiness} warningCount={usageSnapshot.warnings.length} />
+
+        <article className="panel p-5 sm:p-6">
+          <p className="eyebrow">Usage Controls</p>
+          <h2 className="mt-3 text-2xl font-semibold text-foreground">Soft billing enforcement for the current environment</h2>
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <UsageMeter
+              label="Agent tasks"
+              used={getUsedValue(currentPlan.agentTaskCredits, usageSnapshot.balance.agentTaskCredits)}
+              limit={currentPlan.agentTaskCredits}
+              unit="tasks"
+              detail="Task volume remains soft-enforced in mock and internal mode."
+            />
+            <UsageMeter
+              label="Workflows"
+              used={getUsedValue(currentPlan.workflowCredits, usageSnapshot.balance.workflowCredits)}
+              limit={currentPlan.workflowCredits}
+              unit="runs"
+              detail="Workflow launches stay allowed, but upgrade hints surface when the runway gets short."
+            />
+          </div>
+        </article>
+      </section>
+
+      <section className="mt-5">
+        <BrandProfilePanel initialBrandProfile={brandProfile} initialBrandModeSettings={brandModeSettings} />
+      </section>
+
+      <section className="mt-5">
+        <UpgradeCta currentPlanTier={billingAccount.planTier} options={upgradeOptions} compact />
       </section>
 
       <section className="mt-5">

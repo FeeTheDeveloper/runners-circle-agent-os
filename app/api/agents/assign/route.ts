@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createAgentTask } from "@/lib/services/agent-tasks";
+import { getCurrentProfile } from "@/lib/services/profiles";
+import { getPrimaryTeamForUser } from "@/lib/services/teams";
 import { agentTaskPriorities, agentTaskTypes } from "@/lib/types/agents";
 import type { AssignAgentApiError, AssignAgentApiSuccess } from "@/lib/types/agents";
 
@@ -30,7 +32,14 @@ export async function POST(request: Request) {
       return NextResponse.json(body, { status: 400 });
     }
 
-    const result = createAgentTask(parsed.data);
+    const currentProfile = await getCurrentProfile();
+    const userId = currentProfile.user?.id ?? currentProfile.profile?.user_id ?? "mock-user";
+    const team = await getPrimaryTeamForUser(userId);
+    const result = createAgentTask({
+      ...parsed.data,
+      userId,
+      teamId: team?.id ?? null,
+    });
 
     if (!result.success) {
       const body: AssignAgentApiError = {

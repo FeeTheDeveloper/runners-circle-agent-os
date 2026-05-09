@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { preparePromotionPackage } from "@/lib/services/promotions";
+import { getCurrentProfile } from "@/lib/services/profiles";
+import { getPrimaryTeamForUser } from "@/lib/services/teams";
 import { promotionChannels, type PromotionError, type PromotionResponse } from "@/lib/types/promotions";
 
 export const runtime = "nodejs";
@@ -41,7 +43,14 @@ export async function POST(request: Request) {
       return NextResponse.json(body, { status: 400 });
     }
 
-    const result = preparePromotionPackage(parsed.data);
+    const currentProfile = await getCurrentProfile();
+    const userId = currentProfile.user?.id ?? currentProfile.profile?.user_id ?? "mock-user";
+    const team = await getPrimaryTeamForUser(userId);
+    const result = preparePromotionPackage({
+      ...parsed.data,
+      userId,
+      teamId: team?.id ?? null,
+    });
 
     if (!result.success) {
       return NextResponse.json(result, { status: getErrorStatus(result.error.code) });

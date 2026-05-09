@@ -4,20 +4,37 @@ import { useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Sparkles } from "lucide-react";
 import { agentRegistry } from "@/lib/agents/registry";
+import { BrandModeBadges } from "@/components/brand/brand-mode-badges";
 import { GenerationResult } from "@/components/studio/generation-result";
-import { aspectRatios, videoDurations, videoFormats, type GenerationResponse, type GenerationResult as GenerationResultData, type GenerationType, type ImageGenerationInput, type VideoGenerationInput } from "@/lib/types/generation";
+import {
+  aspectRatios,
+  videoDurations,
+  videoFormats,
+  type GenerationResponse,
+  type GenerationResult as GenerationResultData,
+  type GenerationType,
+  type ImageGenerationInput,
+  type VideoGenerationInput,
+} from "@/lib/types/generation";
+import type { BrandTone } from "@/lib/types/brand";
 
 interface PromptPanelProps {
   mode: GenerationType;
   title: string;
   description: string;
   defaultPrompt: string;
+  brandProfileName: string;
+  brandTone: BrandTone;
+  defaultBrandModeEnabled: boolean;
 }
 
 interface PromptPanelShellProps {
   mode: GenerationType;
   title: string;
   description: string;
+  brandProfileName: string;
+  brandTone: BrandTone;
+  brandModeEnabled: boolean;
   children: React.ReactNode;
   result: GenerationResultData | null;
   errorMessage: string | null;
@@ -44,7 +61,7 @@ const fieldClassName =
   "w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted focus:border-orange/40";
 
 function getDefaultAgentId(mode: GenerationType, ids: string[]) {
-  const preferred = mode === "image" ? "image-generation" : "video-generation";
+  const preferred = mode === "image" ? "image-generation-agent" : "video-generation-agent";
 
   return ids.includes(preferred) ? preferred : ids[0] ?? "";
 }
@@ -76,7 +93,18 @@ async function requestGeneration(
   return body;
 }
 
-function PromptPanelShell({ mode, title, description, children, result, errorMessage, isSubmitting }: PromptPanelShellProps) {
+function PromptPanelShell({
+  mode,
+  title,
+  description,
+  brandProfileName,
+  brandTone,
+  brandModeEnabled,
+  children,
+  result,
+  errorMessage,
+  isSubmitting,
+}: PromptPanelShellProps) {
   return (
     <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
       <section className="panel-strong p-5 sm:p-6">
@@ -89,6 +117,10 @@ function PromptPanelShell({ mode, title, description, children, result, errorMes
           <div className="rounded-2xl border border-orange/20 bg-orange/10 p-3 text-orange-soft">
             <Sparkles className="size-5" />
           </div>
+        </div>
+
+        <div className="mt-5">
+          <BrandModeBadges active={brandModeEnabled} profileName={brandProfileName} tone={brandTone} />
         </div>
 
         <div className="mt-6">{children}</div>
@@ -114,7 +146,17 @@ function PromptPanelShell({ mode, title, description, children, result, errorMes
   );
 }
 
-function BrandModeToggle({ enabled, onToggle }: { enabled: boolean; onToggle: () => void }) {
+function BrandModeToggle({
+  enabled,
+  onToggle,
+  brandProfileName,
+  brandTone,
+}: {
+  enabled: boolean;
+  onToggle: () => void;
+  brandProfileName: string;
+  brandTone: BrandTone;
+}) {
   return (
     <button
       type="button"
@@ -125,7 +167,7 @@ function BrandModeToggle({ enabled, onToggle }: { enabled: boolean; onToggle: ()
       <div>
         <p className="text-sm font-medium text-foreground">Brand mode</p>
         <p className="mt-1 text-xs leading-5 text-muted">
-          Applies the premium athletic-tech tone for Runners Circle Agent OS.
+          Applies {brandProfileName} direction with a {brandTone} tone.
         </p>
       </div>
       <div
@@ -141,12 +183,19 @@ function BrandModeToggle({ enabled, onToggle }: { enabled: boolean; onToggle: ()
   );
 }
 
-function ImagePromptPanel({ title, description, defaultPrompt }: Omit<PromptPanelProps, "mode">) {
+function ImagePromptPanel({
+  title,
+  description,
+  defaultPrompt,
+  brandProfileName,
+  brandTone,
+  defaultBrandModeEnabled,
+}: Omit<PromptPanelProps, "mode">) {
   const [form, setForm] = useState<ImageGenerationInput>({
     prompt: defaultPrompt,
     style: imageStyles[0],
     aspectRatio: "4:5",
-    brandMode: true,
+    brandMode: defaultBrandModeEnabled,
     agentId: getDefaultAgentId("image", imageAgents.map((agent) => agent.id)),
   });
   const [result, setResult] = useState<GenerationResultData | null>(null);
@@ -180,6 +229,9 @@ function ImagePromptPanel({ title, description, defaultPrompt }: Omit<PromptPane
       mode="image"
       title={title}
       description={description}
+      brandProfileName={brandProfileName}
+      brandTone={brandTone}
+      brandModeEnabled={form.brandMode}
       result={result}
       errorMessage={errorMessage}
       isSubmitting={isSubmitting}
@@ -250,14 +302,19 @@ function ImagePromptPanel({ title, description, defaultPrompt }: Omit<PromptPane
           >
             {imageAgents.map((agent) => (
               <option key={agent.id} value={agent.id} disabled={agent.status === "offline"}>
-                {agent.name} · {agent.status}
+                {agent.name} - {agent.status}
               </option>
             ))}
           </select>
           <p className="text-xs leading-5 text-muted">Busy agents can still receive queued work. Offline agents are blocked.</p>
         </div>
 
-        <BrandModeToggle enabled={form.brandMode} onToggle={() => setForm((current) => ({ ...current, brandMode: !current.brandMode }))} />
+        <BrandModeToggle
+          enabled={form.brandMode}
+          onToggle={() => setForm((current) => ({ ...current, brandMode: !current.brandMode }))}
+          brandProfileName={brandProfileName}
+          brandTone={brandTone}
+        />
 
         <button
           type="submit"
@@ -271,13 +328,20 @@ function ImagePromptPanel({ title, description, defaultPrompt }: Omit<PromptPane
   );
 }
 
-function VideoPromptPanel({ title, description, defaultPrompt }: Omit<PromptPanelProps, "mode">) {
+function VideoPromptPanel({
+  title,
+  description,
+  defaultPrompt,
+  brandProfileName,
+  brandTone,
+  defaultBrandModeEnabled,
+}: Omit<PromptPanelProps, "mode">) {
   const [form, setForm] = useState<VideoGenerationInput>({
     prompt: defaultPrompt,
     motionStyle: motionStyles[0],
     duration: 15,
     format: "vertical",
-    brandMode: true,
+    brandMode: defaultBrandModeEnabled,
     agentId: getDefaultAgentId("video", videoAgents.map((agent) => agent.id)),
   });
   const [result, setResult] = useState<GenerationResultData | null>(null);
@@ -311,6 +375,9 @@ function VideoPromptPanel({ title, description, defaultPrompt }: Omit<PromptPane
       mode="video"
       title={title}
       description={description}
+      brandProfileName={brandProfileName}
+      brandTone={brandTone}
+      brandModeEnabled={form.brandMode}
       result={result}
       errorMessage={errorMessage}
       isSubmitting={isSubmitting}
@@ -360,7 +427,7 @@ function VideoPromptPanel({ title, description, defaultPrompt }: Omit<PromptPane
             >
               {videoAgents.map((agent) => (
                 <option key={agent.id} value={agent.id} disabled={agent.status === "offline"}>
-                  {agent.name} · {agent.status}
+                  {agent.name} - {agent.status}
                 </option>
               ))}
             </select>
@@ -409,7 +476,12 @@ function VideoPromptPanel({ title, description, defaultPrompt }: Omit<PromptPane
           </div>
         </div>
 
-        <BrandModeToggle enabled={form.brandMode} onToggle={() => setForm((current) => ({ ...current, brandMode: !current.brandMode }))} />
+        <BrandModeToggle
+          enabled={form.brandMode}
+          onToggle={() => setForm((current) => ({ ...current, brandMode: !current.brandMode }))}
+          brandProfileName={brandProfileName}
+          brandTone={brandTone}
+        />
 
         <button
           type="submit"
@@ -423,10 +495,36 @@ function VideoPromptPanel({ title, description, defaultPrompt }: Omit<PromptPane
   );
 }
 
-export function PromptPanel({ mode, title, description, defaultPrompt }: PromptPanelProps) {
+export function PromptPanel({
+  mode,
+  title,
+  description,
+  defaultPrompt,
+  brandProfileName,
+  brandTone,
+  defaultBrandModeEnabled,
+}: PromptPanelProps) {
   if (mode === "image") {
-    return <ImagePromptPanel title={title} description={description} defaultPrompt={defaultPrompt} />;
+    return (
+      <ImagePromptPanel
+        title={title}
+        description={description}
+        defaultPrompt={defaultPrompt}
+        brandProfileName={brandProfileName}
+        brandTone={brandTone}
+        defaultBrandModeEnabled={defaultBrandModeEnabled}
+      />
+    );
   }
 
-  return <VideoPromptPanel title={title} description={description} defaultPrompt={defaultPrompt} />;
+  return (
+    <VideoPromptPanel
+      title={title}
+      description={description}
+      defaultPrompt={defaultPrompt}
+      brandProfileName={brandProfileName}
+      brandTone={brandTone}
+      defaultBrandModeEnabled={defaultBrandModeEnabled}
+    />
+  );
 }

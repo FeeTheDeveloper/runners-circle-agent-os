@@ -36,6 +36,9 @@ export function Topbar({ eyebrow, title, description, status, action }: TopbarPr
             <span className={status.openAi ? "text-success" : "text-warning"}>o</span>
             OpenAI {status.openAi ? "API-ready" : "configure key"}
           </div>
+          <div className="status-pill border-electric/20 bg-electric/10 text-electric">
+            Workflow + team command + distribution + billing manual-ready
+          </div>
         </div>
       </div>
     </header>

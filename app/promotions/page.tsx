@@ -1,7 +1,12 @@
 import { promotionChannels, type PromotionStatus } from "@/lib/types/promotions";
+import { BrandModeBadges } from "@/components/brand/brand-mode-badges";
 import { AppShell } from "@/components/layout/app-shell";
 import { PromotionCard } from "@/components/promotions/promotion-card";
+import { getBrandModeSettings, getBrandProfile } from "@/lib/services/brand";
+import { getDistributionJobs } from "@/lib/services/distribution";
 import { getPromotionPackages } from "@/lib/services/promotions";
+import { getCurrentProfile } from "@/lib/services/profiles";
+import { getLatestApprovalRequestForEntity } from "@/lib/services/reviews";
 
 export const dynamic = "force-dynamic";
 
@@ -36,22 +41,44 @@ function formatChannelLabel(channel: (typeof promotionChannels)[number]) {
   return channel.replaceAll("_", " ");
 }
 
-export default function PromotionsPage() {
+export default async function PromotionsPage() {
+  const currentProfile = await getCurrentProfile();
+  const userId = currentProfile.user?.id ?? currentProfile.profile?.user_id ?? "mock-user";
+  const brandProfile = getBrandProfile(userId);
+  const brandModeSettings = getBrandModeSettings(userId);
   const promotionPackages = getPromotionPackages();
+  const distributionJobs = getDistributionJobs();
+  const reviewRequestByPromotionId = Object.fromEntries(
+    promotionPackages.map((promotionPackage) => [
+      promotionPackage.id,
+      getLatestApprovalRequestForEntity("promotion_package", promotionPackage.id),
+    ]),
+  );
+  const distributionJobsByPromotionId = distributionJobs.reduce<Record<string, typeof distributionJobs>>((groups, job) => {
+    if (!groups[job.promotionPackageId]) {
+      groups[job.promotionPackageId] = [];
+    }
+
+    groups[job.promotionPackageId].push(job);
+    return groups;
+  }, {});
 
   return (
     <AppShell
       eyebrow="Promotions"
       title="Prepare channel-ready promotion packages from campaign media."
-      description="The Promotion Agent pipeline converts approved campaign media into channel-specific copy packs, review checklists, and export-ready package contracts without live publishing or scheduling."
+      description="The Promotion Agent pipeline converts approved campaign media into channel-specific copy packs, review checklists, export-ready package contracts, and distribution handoff jobs without forcing live publishing automation."
       action={
-        <button
-          type="button"
-          disabled
-          className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-foreground/80"
-        >
-          Prepare package UI soon
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <BrandModeBadges active={brandModeSettings.enabled} profileName={brandProfile.name} tone={brandProfile.tone} compact />
+          <button
+            type="button"
+            disabled
+            className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-foreground/80"
+          >
+            Prepare package UI soon
+          </button>
+        </div>
       }
     >
       <section className="panel-strong p-5 sm:p-6">
@@ -60,9 +87,12 @@ export default function PromotionsPage() {
           Promotion packages turn campaign structure into channel-ready execution copy.
         </h2>
         <p className="mt-4 max-w-3xl text-sm leading-7 text-muted">
-          This layer keeps the social, email, and website copy contract visible before any live publishing, scheduling,
-          or external integration is introduced.
+          This layer keeps the social, email, and website copy contract visible before any live publishing automation
+          is introduced, while still handing approved packages into the distribution queue.
         </p>
+        <div className="mt-5">
+          <BrandModeBadges active={brandModeSettings.enabled} profileName={brandProfile.name} tone={brandProfile.tone} compact />
+        </div>
       </section>
 
       <section className="mt-5 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
@@ -91,7 +121,12 @@ export default function PromotionsPage() {
         ) : (
           <div className="grid gap-5 xl:grid-cols-2">
             {promotionPackages.map((promotion) => (
-              <PromotionCard key={promotion.id} promotion={promotion} />
+              <PromotionCard
+                key={promotion.id}
+                promotion={promotion}
+                reviewRequest={reviewRequestByPromotionId[promotion.id] ?? null}
+                distributionJobs={distributionJobsByPromotionId[promotion.id] ?? []}
+              />
             ))}
           </div>
         )}

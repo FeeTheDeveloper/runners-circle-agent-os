@@ -1,7 +1,10 @@
 import { mockPromotionPackages } from "@/lib/data/promotions";
+import { DEFAULT_MOCK_TEAM_ID } from "@/lib/data/mock-team";
+import { applyBrandVoiceToCopy, getBrandModeSettings, getBrandProfile, validateBrandOutput } from "@/lib/services/brand";
 import { validateAgentTask } from "@/lib/services/agent-tasks";
 import { getCampaignById } from "@/lib/services/campaigns";
 import { getMediaAssetById } from "@/lib/services/media-storage";
+import type { DistributionChannel } from "@/lib/types/distribution";
 import type {
   CaptionSet,
   PromotionChecklistItem,
@@ -37,6 +40,43 @@ function createChecklist(channelCount: number): PromotionChecklistItem[] {
     { id: `check_${crypto.randomUUID().slice(0, 6)}`, label: "Operator review requested", completed: false },
     { id: `check_${crypto.randomUUID().slice(0, 6)}`, label: "Export handoff prepared", completed: false },
   ];
+}
+
+function prioritizeChannels(channels: PromotionInput["channels"], preferredPlatforms: string[]) {
+  const preferred = preferredPlatforms.filter((platform): platform is PromotionInput["channels"][number] =>
+    channels.includes(platform as PromotionInput["channels"][number]),
+  );
+  const remainder = channels.filter((channel) => !preferred.includes(channel));
+
+  return [...preferred, ...remainder];
+}
+
+function resolveBrandContext(input: PromotionInput) {
+  const brandProfile = getBrandProfile(input.userId);
+  const storedSettings = getBrandModeSettings(input.userId);
+  const brandModeEnabled = input.brandModeEnabled ?? storedSettings.enabled;
+
+  return {
+    brandProfile,
+    brandModeSettings: {
+      ...storedSettings,
+      enabled: brandModeEnabled,
+    },
+    brandModeEnabled,
+  };
+}
+
+function normalizeHashtag(value: string) {
+  const cleaned = value.replace(/[^a-zA-Z0-9]+/g, " ").trim();
+
+  if (!cleaned) {
+    return null;
+  }
+
+  return `#${cleaned
+    .split(/\s+/)
+    .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
+    .join("")}`;
 }
 
 function validatePromotionInput(input: PromotionInput) {
@@ -127,22 +167,147 @@ export function getPromotionPackageById(id: string): PromotionPackage | null {
   return promotionPackagesStore.find((promotionPackage) => promotionPackage.id === id) ?? null;
 }
 
-export function createCaptionSet(input: PromotionInput): CaptionSet {
-  const campaign = getCampaignById(input.campaignId);
-  const campaignName = campaign?.name ?? "Promotion package";
-  const coreMessage = campaign?.coreMessage ?? "Move the campaign forward.";
-  const channelSummary = input.channels.map((channel) => channel.replaceAll("_", " ")).join(", ");
+export function getPromotionDistributionCaption(
+  promotionPackage: PromotionPackage,
+  channel: DistributionChannel,
+) {
+  switch (channel) {
+    case "instagram":
+      return promotionPackage.captionSet.instagramCaption;
+    case "tiktok":
+      return promotionPackage.captionSet.tiktokCaption;
+    case "youtube_shorts":
+      return promotionPackage.captionSet.youtubeShortsDescription;
+    case "x":
+      return promotionPackage.captionSet.xPost;
+    case "linkedin":
+      return promotionPackage.captionSet.xPost || promotionPackage.captionSet.websiteBlurb;
+    case "email":
+      return promotionPackage.captionSet.emailBody;
+    case "website":
+      return promotionPackage.captionSet.websiteBlurb;
+  }
+}
+
+export function getPromotionDistributionPayload(promotionPackageId: string, channel: DistributionChannel) {
+  const promotionPackage = getPromotionPackageById(promotionPackageId);
+
+  if (!promotionPackage) {
+    return null;
+  }
 
   return {
-    instagramCaption: `${campaignName} is built for premium motion and direct response. ${coreMessage} ${input.callToAction}.`,
-    tiktokCaption: `${campaignName} moves with fast hooks, premium energy, and a direct ask: ${input.callToAction}.`,
-    youtubeShortsTitle: `${campaignName} | ${input.callToAction}`,
-    youtubeShortsDescription: `${campaignName} is packaged for ${channelSummary}. Tone: ${input.tone}. ${coreMessage} ${input.callToAction}.`,
-    xPost: `${campaignName} is prepared for ${channelSummary}. ${coreMessage} ${input.callToAction}.`,
-    emailSubject: `${campaignName}: ${input.callToAction}`,
-    emailBody: `${campaignName} is now packaged for ${channelSummary}. Tone: ${input.tone}. Core message: ${coreMessage} ${input.callToAction}.`,
-    websiteBlurb: `${campaignName} turns approved campaign media into a channel-ready promotion package with a ${input.tone} voice.`,
-    hashtags: ["#RunnersCircle", "#AgentOS", "#DirectPromotion", "#PremiumAthletic"],
+    promotionPackageId: promotionPackage.id,
+    campaignId: promotionPackage.campaignId,
+    teamId: promotionPackage.teamId ?? DEFAULT_MOCK_TEAM_ID,
+    channel,
+    caption: getPromotionDistributionCaption(promotionPackage, channel),
+    mediaAssetIds: [...promotionPackage.mediaAssetIds],
+    assignedAgentId: promotionPackage.assignedAgentId,
+    promotionStatus: promotionPackage.status,
+    reviewStatus: promotionPackage.reviewStatus ?? null,
+  };
+}
+
+export function createCaptionSet(
+  input: PromotionInput,
+  options?: {
+    brandProfile?: ReturnType<typeof getBrandProfile>;
+    brandModeEnabled?: boolean;
+  },
+): CaptionSet {
+  const campaign = getCampaignById(input.campaignId);
+  const brandProfile = options?.brandProfile ?? getBrandProfile(input.userId);
+  const brandModeEnabled = options?.brandModeEnabled ?? getBrandModeSettings(input.userId).enabled;
+  const campaignName = campaign?.name ?? "Promotion package";
+  const coreMessage = campaign?.coreMessage ?? "Move the campaign forward.";
+  const orderedChannels = brandModeEnabled
+    ? prioritizeChannels(input.channels, brandProfile.preferredPlatforms)
+    : input.channels;
+  const channelSummary = orderedChannels.map((channel) => channel.replaceAll("_", " ")).join(", ");
+  const toneSummary = brandModeEnabled
+    ? `${brandProfile.tone}, disciplined, and launch-ready`
+    : input.tone;
+  const cta = applyBrandVoiceToCopy({
+    baseCopy: input.callToAction,
+    userId: input.userId,
+    brandProfile,
+    brandModeSettings: {
+      ...getBrandModeSettings(input.userId),
+      enabled: brandModeEnabled,
+    },
+  }).enhancedCopy;
+
+  const baseCaptionSet: CaptionSet = {
+    instagramCaption: `${campaignName} is live with ${brandProfile.tagline.toLowerCase()} ${coreMessage} ${cta}.`,
+    tiktokCaption: `${campaignName} moves with ${toneSummary} energy for ${channelSummary}. ${cta}.`,
+    youtubeShortsTitle: `${campaignName} | ${cta}`,
+    youtubeShortsDescription: `${campaignName} is packaged for ${channelSummary}. Tone: ${toneSummary}. ${coreMessage} ${cta}.`,
+    xPost: `${campaignName} is prepared for ${channelSummary}. ${coreMessage} ${cta}.`,
+    emailSubject: `${campaignName}: ${cta}`,
+    emailBody: `${campaignName} is now packaged for ${channelSummary}. Voice: ${brandProfile.brandVoiceNotes} ${coreMessage} ${cta}.`,
+    websiteBlurb: `${campaignName} delivers ${brandProfile.tone} campaign momentum with ${brandProfile.visualStyle.toLowerCase()}.`,
+    hashtags: [
+      "#RunnersCircle",
+      ...brandProfile.keywords.map(normalizeHashtag).filter((value): value is string => value !== null).slice(0, 3),
+    ],
+  };
+
+  const voiceSettings = {
+    ...getBrandModeSettings(input.userId),
+    enabled: brandModeEnabled,
+  };
+
+  return {
+    instagramCaption: applyBrandVoiceToCopy({
+      baseCopy: baseCaptionSet.instagramCaption,
+      userId: input.userId,
+      brandProfile,
+      brandModeSettings: voiceSettings,
+    }).enhancedCopy,
+    tiktokCaption: applyBrandVoiceToCopy({
+      baseCopy: baseCaptionSet.tiktokCaption,
+      userId: input.userId,
+      brandProfile,
+      brandModeSettings: voiceSettings,
+    }).enhancedCopy,
+    youtubeShortsTitle: applyBrandVoiceToCopy({
+      baseCopy: baseCaptionSet.youtubeShortsTitle,
+      userId: input.userId,
+      brandProfile,
+      brandModeSettings: voiceSettings,
+    }).enhancedCopy,
+    youtubeShortsDescription: applyBrandVoiceToCopy({
+      baseCopy: baseCaptionSet.youtubeShortsDescription,
+      userId: input.userId,
+      brandProfile,
+      brandModeSettings: voiceSettings,
+    }).enhancedCopy,
+    xPost: applyBrandVoiceToCopy({
+      baseCopy: baseCaptionSet.xPost,
+      userId: input.userId,
+      brandProfile,
+      brandModeSettings: voiceSettings,
+    }).enhancedCopy,
+    emailSubject: applyBrandVoiceToCopy({
+      baseCopy: baseCaptionSet.emailSubject,
+      userId: input.userId,
+      brandProfile,
+      brandModeSettings: voiceSettings,
+    }).enhancedCopy,
+    emailBody: applyBrandVoiceToCopy({
+      baseCopy: baseCaptionSet.emailBody,
+      userId: input.userId,
+      brandProfile,
+      brandModeSettings: voiceSettings,
+    }).enhancedCopy,
+    websiteBlurb: applyBrandVoiceToCopy({
+      baseCopy: baseCaptionSet.websiteBlurb,
+      userId: input.userId,
+      brandProfile,
+      brandModeSettings: voiceSettings,
+    }).enhancedCopy,
+    hashtags: [...new Set(baseCaptionSet.hashtags)],
   };
 }
 
@@ -155,18 +320,58 @@ export function preparePromotionPackage(
     return validation;
   }
 
+  const { brandProfile, brandModeEnabled, brandModeSettings } = resolveBrandContext(input);
+  const orderedChannels = brandModeEnabled
+    ? prioritizeChannels(input.channels, brandProfile.preferredPlatforms)
+    : [...input.channels];
+  const tone = brandModeEnabled ? `${brandProfile.tone}, disciplined, platform-ready` : input.tone.trim();
+  const callToAction = applyBrandVoiceToCopy({
+    baseCopy: input.callToAction.trim(),
+    userId: input.userId,
+    brandProfile,
+    brandModeSettings,
+  }).enhancedCopy;
+  const captionSet = createCaptionSet(input, { brandProfile, brandModeEnabled });
+  const brandValidation = validateBrandOutput({
+    content: [
+      captionSet.instagramCaption,
+      captionSet.tiktokCaption,
+      captionSet.youtubeShortsDescription,
+      captionSet.xPost,
+      captionSet.emailBody,
+      captionSet.websiteBlurb,
+    ].join(" "),
+    brandProfile,
+  });
   const timestamp = nowIso();
+  const checklist = createChecklist(orderedChannels.length);
+
+  if (brandValidation.warnings.length > 0) {
+    checklist.push({
+      id: `check_${crypto.randomUUID().slice(0, 6)}`,
+      label: `Brand review: ${brandValidation.warnings[0]}`,
+      completed: false,
+    });
+  }
+
   const promotionPackage: PromotionPackage = {
     id: createPromotionId(),
+    teamId: input.teamId ?? validation.campaign.teamId ?? DEFAULT_MOCK_TEAM_ID,
     campaignId: input.campaignId,
     mediaAssetIds: [...input.mediaAssetIds],
-    channels: [...input.channels],
+    channels: orderedChannels,
     status: "prepared",
-    captionSet: createCaptionSet(input),
-    checklist: createChecklist(input.channels.length),
+    reviewStatus: null,
+    assignedReviewerId: null,
+    captionSet,
+    checklist,
     assignedAgentId: input.assignedAgentId,
-    tone: input.tone.trim(),
-    callToAction: input.callToAction.trim(),
+    tone,
+    callToAction,
+    brandProfileId: brandProfile.id,
+    brandProfileName: brandProfile.name,
+    brandTone: brandProfile.tone,
+    brandModeApplied: brandModeEnabled,
     createdAt: timestamp,
     updatedAt: timestamp,
   };

@@ -1,8 +1,11 @@
 import Link from "next/link";
+import { BrandModeBadges } from "@/components/brand/brand-mode-badges";
 import { AppShell } from "@/components/layout/app-shell";
+import { getBrandModeSettings, getBrandProfile } from "@/lib/services/brand";
 import { MediaCard } from "@/components/media/media-card";
 import { getMediaAssets, getUserMediaAssets } from "@/lib/services/media-storage";
 import { getCurrentProfile } from "@/lib/services/profiles";
+import { getLatestApprovalRequestForEntity } from "@/lib/services/reviews";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import type { MediaAsset } from "@/lib/types/media";
 
@@ -52,6 +55,9 @@ export default async function MediaPage({ searchParams }: MediaPageProps) {
   const activeFilter = resolveFilter(params.filter);
 
   const profile = await getCurrentProfile();
+  const userId = profile.user?.id ?? profile.profile?.user_id ?? "mock-user";
+  const brandProfile = getBrandProfile(userId);
+  const brandModeSettings = getBrandModeSettings(userId);
   const supabaseReady = isSupabaseConfigured();
   const isAuthenticated = profile.mode === "supabase" && Boolean(profile.user);
 
@@ -73,6 +79,9 @@ export default async function MediaPage({ searchParams }: MediaPageProps) {
   }
 
   const filteredAssets = filterAssets(assets, activeFilter);
+  const reviewRequestByAssetId = Object.fromEntries(
+    filteredAssets.map((asset) => [asset.id, getLatestApprovalRequestForEntity("media_asset", asset.id)]),
+  );
   const sourceLabel = isPersisted ? "persisted" : "mock";
   const badgeClass = isPersisted
     ? "status-pill border-emerald-400/20 bg-emerald-400/10 text-emerald-200"
@@ -85,6 +94,7 @@ export default async function MediaPage({ searchParams }: MediaPageProps) {
       description="The Media Library now uses typed mock records and storage-ready contracts so the dashboard can preview assets, filter them by lane, and prepare direct downloads without live Supabase Storage yet."
       action={
         <div className="flex flex-wrap items-center gap-2">
+          <BrandModeBadges active={brandModeSettings.enabled} profileName={brandProfile.name} tone={brandProfile.tone} compact />
           <div className={badgeClass}>{sourceLabel}</div>
           <div className="status-pill border-electric/20 bg-electric/10 text-electric">{assets.length} assets</div>
         </div>
@@ -99,6 +109,9 @@ export default async function MediaPage({ searchParams }: MediaPageProps) {
               Use the filter tabs to focus the dashboard on the assets that are ready to ship, still processing, or
               specific to the image or video lanes.
             </p>
+            <div className="mt-4">
+              <BrandModeBadges active={brandModeSettings.enabled} profileName={brandProfile.name} tone={brandProfile.tone} compact />
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-3">
@@ -136,7 +149,7 @@ export default async function MediaPage({ searchParams }: MediaPageProps) {
         ) : (
           <div className="grid gap-5 xl:grid-cols-2">
             {filteredAssets.map((asset) => (
-              <MediaCard key={asset.id} asset={asset} />
+              <MediaCard key={asset.id} asset={asset} reviewRequest={reviewRequestByAssetId[asset.id] ?? null} />
             ))}
           </div>
         )}

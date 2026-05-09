@@ -1,23 +1,39 @@
 import type {
   AgentCapability,
+  AgentPriorityLevel,
   AgentStatus,
   AgentTaskPriority,
   AgentTaskStatus,
   AgentTaskType,
 } from "@/lib/types/agents";
-
 export {
   agentStatuses,
+  agentPriorityLevels,
   agentTaskPriorities,
   agentTaskStatuses,
   agentTaskTypes,
 } from "@/lib/types/agents";
 
+export { agentExecutionModes, agentExecutionStatuses } from "@/lib/types/agent-execution";
+export { billingProviders, billingStatuses, planTiers, usageEnforcementModes, usageEventTypes } from "@/lib/types/billing";
+export { brandModeStrictnessLevels, brandTones } from "@/lib/types/brand";
+export { distributionChannels, distributionStatuses, publishingProviders } from "@/lib/types/distribution";
+export { stripeBillingIntervals, stripeCheckoutModes, stripeWebhookEventTypes } from "@/lib/types/stripe";
+export { approvalEntityTypes, reviewStatuses, teamRoles } from "@/lib/types/team";
+export { workflowStatuses, workflowStepStatuses, workflowStepTypes } from "@/lib/types/workflows";
+
 export type {
   AgentCapability,
+  AgentCoverageMapItem,
   AgentOutputSchema,
   AgentOutputSchemaField,
+  AgentExecutionStep,
+  AgentHandoffStep,
+  AgentPipelineViewItem,
+  AgentPriorityLevel,
   AgentRegistryEntry,
+  AgentRoutingReadinessSummary,
+  AgentRoutingResult,
   AgentStatus,
   AgentTaskInput,
   AgentTaskMutationFailure,
@@ -32,7 +48,103 @@ export type {
   AssignAgentApiError,
   AssignAgentApiSuccess,
   CreateAgentTaskInput,
+  RouteTaskToAgentInput,
 } from "@/lib/types/agents";
+
+export type {
+  AgentExecutionMode,
+  AgentExecutionPackage,
+  AgentExecutionResult,
+  AgentExecutionStatus,
+  RecordExecutionResultInput,
+} from "@/lib/types/agent-execution";
+
+export type {
+  BillingAccount,
+  BillingProvider,
+  BillingReadiness,
+  BillingStatus,
+  ConsumeUsageCreditInput,
+  PlanFeature,
+  PlanTier,
+  RecordUsageEventInput,
+  UpgradeOption,
+  UsageCheckInput,
+  UsageCheckResult,
+  UsageCreditBalance,
+  UsageEnforcementMode,
+  UsageEvent,
+  UsageEventType,
+  UsageRemaining,
+  UsageSnapshot,
+} from "@/lib/types/billing";
+
+export type {
+  StripeBillingInterval,
+  StripeCheckoutInput,
+  StripeCheckoutMode,
+  StripePortalInput,
+  StripeSyncResult,
+  StripeWebhookEventType,
+} from "@/lib/types/stripe";
+
+export type {
+  BrandModeSettings,
+  BrandModeStrictness,
+  BrandProfile,
+  BrandPromptModifierResult,
+  BrandTone,
+  BrandValidationResult,
+  BrandVoiceApplicationResult,
+  UpdateBrandProfileInput,
+} from "@/lib/types/brand";
+
+export type {
+  CreateDistributionJobInput,
+  CreateDistributionJobsFromPromotionInput,
+  DistributionChannel,
+  DistributionChannelAdapter,
+  DistributionChannelBreakdownItem,
+  DistributionError,
+  DistributionErrorCode,
+  DistributionJob,
+  DistributionJobFilters,
+  DistributionMockPublishResponse,
+  DistributionNormalizedResult,
+  DistributionOperationalSummary,
+  DistributionPayload,
+  DistributionPublishRequest,
+  DistributionReadinessSummary,
+  DistributionResponse,
+  DistributionStatus,
+  DistributionSuccess,
+  DistributionValidationResult,
+  PublishingProvider,
+} from "@/lib/types/distribution";
+
+export type {
+  ApprovalEntityType,
+  ApprovalRequest,
+  CreateApprovalRequestInput,
+  CreateTeamInput,
+  InviteTeamMemberInput,
+  ReviewStatus,
+  Team,
+  TeamMember,
+  TeamRole,
+} from "@/lib/types/team";
+
+export type {
+  WorkflowOperationalSummary,
+  WorkflowProgress,
+  WorkflowRun,
+  WorkflowStatus,
+  WorkflowStep,
+  WorkflowStepStatus,
+  WorkflowStepType,
+  WorkflowTemplate,
+  WorkflowTemplateStep,
+} from "@/lib/types/workflows";
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
@@ -40,9 +152,14 @@ export const moduleKeys = [
   "dashboard",
   "studio",
   "agents",
+  "workflows",
   "media",
   "campaigns",
   "promotions",
+  "distribution",
+  "billing",
+  "team",
+  "reviews",
   "operator",
   "settings",
 ] as const;
@@ -197,9 +314,12 @@ export type Database = {
           id: string;
           name: string;
           role: string;
+          description: string;
           status: AgentStatus;
+          priority_level: AgentPriorityLevel;
           capabilities: AgentCapability[];
           accepted_task_types: AgentTaskType[];
+          handoff_targets: string[];
           output_schema: Json | null;
           created_at: string;
           updated_at: string;
@@ -208,9 +328,12 @@ export type Database = {
           id: string;
           name: string;
           role: string;
+          description: string;
           status?: AgentStatus;
+          priority_level?: AgentPriorityLevel;
           capabilities?: AgentCapability[];
           accepted_task_types?: AgentTaskType[];
+          handoff_targets?: string[];
           output_schema?: Json | null;
           created_at?: string;
           updated_at?: string;
@@ -219,9 +342,12 @@ export type Database = {
           id?: string;
           name?: string;
           role?: string;
+          description?: string;
           status?: AgentStatus;
+          priority_level?: AgentPriorityLevel;
           capabilities?: AgentCapability[];
           accepted_task_types?: AgentTaskType[];
+          handoff_targets?: string[];
           output_schema?: Json | null;
           created_at?: string;
           updated_at?: string;

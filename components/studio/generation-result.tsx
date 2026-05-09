@@ -1,5 +1,6 @@
 import Image from "next/image";
 import type { GenerationResult as GenerationResultData, GenerationType } from "@/lib/types/generation";
+import { BrandModeBadges } from "@/components/brand/brand-mode-badges";
 
 interface GenerationResultProps {
   mode: GenerationType;
@@ -13,11 +14,15 @@ const contractFields = [
   "type",
   "title",
   "prompt",
+  "originalPrompt",
+  "enhancedPrompt",
   "status",
   "thumbnailUrl",
   "mediaUrl",
   "createdAt",
   "assignedAgentId",
+  "brandProfileId",
+  "brandModeApplied",
 ];
 
 function getStatusTone(status: GenerationResultData["status"]) {
@@ -78,7 +83,24 @@ export function GenerationResult({ mode, result, errorMessage, isSubmitting }: G
             <div className={getStatusTone(result.status)}>{result.status}</div>
           </div>
 
-          <p className="mt-4 text-sm leading-6 text-muted">{result.prompt}</p>
+          <div className="mt-4">
+            <BrandModeBadges
+              active={result.brandModeApplied}
+              profileName={result.appliedBrandProfile ?? "No active brand"}
+              tone={result.brandTone ?? "minimal"}
+            />
+          </div>
+
+          <div className="mt-5 grid gap-3">
+            <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
+              <p className="field-label">Original prompt</p>
+              <p className="mt-3 text-sm leading-6 text-muted">{result.originalPrompt}</p>
+            </div>
+            <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
+              <p className="field-label">Enhanced prompt</p>
+              <p className="mt-3 text-sm leading-6 text-muted">{result.enhancedPrompt}</p>
+            </div>
+          </div>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
@@ -95,6 +117,19 @@ export function GenerationResult({ mode, result, errorMessage, isSubmitting }: G
               </p>
             </div>
           </div>
+
+          {result.brandWarnings.length > 0 ? (
+            <div className="mt-5 rounded-2xl border border-warning/30 bg-warning/10 p-4">
+              <p className="field-label text-warning">Brand validation notes</p>
+              <div className="mt-3 space-y-2">
+                {result.brandWarnings.map((warning) => (
+                  <p key={warning} className="text-sm leading-6 text-foreground">
+                    {warning}
+                  </p>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           <div className="mt-5 rounded-2xl border border-white/8 bg-black/20 p-4">
             <p className="field-label">{result.type === "video" ? "Queued job reference" : "Media reference"}</p>

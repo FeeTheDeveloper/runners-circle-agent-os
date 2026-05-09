@@ -2,18 +2,23 @@
 
 import { useState } from "react";
 import { agentRegistry } from "@/lib/agents/registry";
+import { BrandModeBadges } from "@/components/brand/brand-mode-badges";
+import { RequestReviewButton } from "@/components/reviews/request-review-button";
+import { ReviewStatusBadge } from "@/components/reviews/review-status-badge";
 import type { Campaign } from "@/lib/types/campaigns";
 import type { PromotionResponse } from "@/lib/types/promotions";
+import type { ApprovalRequest } from "@/lib/types/team";
 
 interface CampaignCardProps {
   campaign: Campaign;
+  reviewRequest?: ApprovalRequest | null;
 }
 
 function formatLabel(value: string) {
   return value.replaceAll("_", " ");
 }
 
-export function CampaignCard({ campaign }: CampaignCardProps) {
+export function CampaignCard({ campaign, reviewRequest = null }: CampaignCardProps) {
   const [promotionState, setPromotionState] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [promotionFeedback, setPromotionFeedback] = useState<string | null>(null);
   const assignedAgent = agentRegistry.find((agent) => agent.id === campaign.assignedAgentId)?.name ?? campaign.assignedAgentId;
@@ -34,7 +39,7 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
           channels: campaign.channels,
           tone: "premium athletic, direct, high-energy",
           callToAction: "Enter the OS",
-          assignedAgentId: "promotion",
+          assignedAgentId: "promotion-agent",
         }),
       });
 
@@ -71,6 +76,15 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
 
       <p className="mt-4 text-sm capitalize leading-6 text-muted">{formatLabel(campaign.objective)}</p>
 
+      <div className="mt-5">
+        <BrandModeBadges
+          active={campaign.brandModeApplied ?? false}
+          profileName={campaign.brandProfileName ?? "Runners Circle"}
+          tone={campaign.brandTone ?? "premium"}
+          compact
+        />
+      </div>
+
       <div className="mt-5 flex flex-wrap gap-2">
         {campaign.channels.map((channel) => (
           <span key={channel} className="data-chip">
@@ -85,9 +99,19 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
           <p className="mt-2 text-lg font-semibold text-foreground">{campaign.assignedMediaIds.length}</p>
         </div>
         <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
-          <p className="field-label">Assigned agent</p>
-          <p className="mt-2 text-sm font-medium text-foreground">{assignedAgent}</p>
+          <p className="field-label">Review state</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {reviewRequest ? <ReviewStatusBadge status={reviewRequest.status} /> : <span className="status-pill">not requested</span>}
+          </div>
+          <p className="mt-2 text-xs text-foreground/70">
+            Reviewer: {reviewRequest?.assignedReviewerId ?? campaign.assignedReviewerId ?? "Unassigned"}
+          </p>
         </div>
+      </div>
+
+      <div className="mt-5 rounded-2xl border border-white/8 bg-black/20 p-4">
+        <p className="field-label">Assigned agent</p>
+        <p className="mt-2 text-sm font-medium text-foreground">{assignedAgent}</p>
       </div>
 
       <div className="mt-5 rounded-2xl border border-white/8 bg-black/20 p-4">
@@ -103,6 +127,14 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
       >
         {promotionState === "loading" ? "Preparing..." : "Prepare promotion"}
       </button>
+
+      <div className="mt-4">
+        <RequestReviewButton
+          entityType="campaign"
+          entityId={campaign.id}
+          notes={`Review campaign "${campaign.name}" before downstream promotion handoff.`}
+        />
+      </div>
 
       {promotionFeedback ? (
         <div

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getRecentActivity } from "@/lib/services/activity";
+import { getDistributionJobs, getDistributionOperationalSummary, getDistributionReadinessSummary } from "@/lib/services/distribution";
 import {
   getFailureSnapshot,
   getNextRecommendedActions,
@@ -21,6 +22,11 @@ export async function GET() {
         reviewQueue: getReviewQueue(),
         nextActions: getNextRecommendedActions(),
         recentActivity: getRecentActivity(8),
+        distribution: {
+          jobs: getDistributionJobs(),
+          summary: getDistributionOperationalSummary(),
+          readiness: getDistributionReadinessSummary(),
+        },
       },
     });
   } catch {
